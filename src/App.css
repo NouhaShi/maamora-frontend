@@ -619,10 +619,24 @@ td strong {
 }
 
 .notification-item {
+  position: relative;
+
   display: flex;
-  gap: 10px;
+  gap: 12px;
   padding-bottom: 10px;
-  border-bottom: 1px solid #edf0f3;
+}
+.notification-item:not(:last-child)::after {
+  content: "";
+
+  position: absolute;
+
+  left: 16px;
+  right: 0;
+
+  bottom: -11px;
+
+  height: 1px;
+  background: #d5d9de;
 }
 
 .notification-icon {
@@ -742,3 +756,251 @@ td strong {
     font-size: 22px;
   }
 }
+/* ==========================================
+   RECENT NOTIFICATIONS PANEL
+   ========================================== */
+/* =========================================
+   RECENT NOTIFICATIONS PANEL
+   ========================================= */
+
+.notifications-panel {
+  padding: 14px 16px 12px;
+}
+
+/* Header */
+.notifications-panel .panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.notifications-panel .panel-header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0b2347;
+}
+
+.notifications-panel .panel-header a {
+  font-size: 19px;
+  color: #f27d2a;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+
+/* =========================================
+   NOTIFICATION LIST
+   ========================================= */
+
+.notification-list {
+  position: relative;
+  padding: 0;
+  margin: 0;
+}
+
+
+/* =========================================
+   CONTINUOUS TIMELINE
+   ========================================= */
+
+.notification-list::before {
+  content: "";
+
+  position: absolute;
+
+  /* line is on the left */
+  left: 17px;
+
+  /* starts around first dot */
+  top: 29px;
+
+  /* ends around last dot */
+  bottom: 29px;
+
+  width: 1px;
+
+  background: #d7dee8;
+
+  z-index: 0;
+}
+
+
+/* =========================================
+   EACH NOTIFICATION
+   ========================================= */
+
+.notification-item {
+  position: relative;
+
+  display: flex;
+  align-items: flex-start;
+
+  height: 62px;
+  min-height: 68px;
+
+  padding: 0px;
+  margin: 0;
+}
+
+
+/* =========================================
+   LEFT TIMELINE AREA
+   ========================================= */
+
+.notification-timeline {
+  position: relative;
+
+  width: 60px;
+  min-width: 60px;
+
+  height: 68px;
+}
+
+
+/* =========================================
+   TIMELINE DOT
+   ========================================= */
+
+.timeline-dot {
+  position: absolute;
+
+  left: 14px;
+  top: 30px;
+
+  width: 7px;
+  height: 7px;
+
+  border-radius: 50%;
+
+  z-index: 3;
+}
+
+
+/* Warning */
+.notification-timeline.warning .timeline-dot {
+  background: #f9812b;
+}
+
+
+/* Completed */
+.notification-timeline.completed .timeline-dot {
+  background: #22a86b;
+}
+
+
+/* Participant */
+.notification-timeline.participant .timeline-dot {
+  background: #22a86b;
+}
+
+
+/* =========================================
+   ICON
+   ========================================= */
+
+.notification-icon {
+  position: absolute;
+
+  left: 29px;
+  top: 16px;
+
+  width: 30px;
+  height: 30px;
+
+  border-radius: 50%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 14px;
+
+  z-index: 4;
+}
+
+
+/* Warning */
+.notification-timeline.warning .notification-icon {
+  background: #fff3df;
+  color: #f27d2a;
+}
+
+
+/* Completed */
+.notification-timeline.completed .notification-icon {
+  background: #e3f9e5;
+  color: #22a86b;
+}
+
+
+/* Participant */
+.notification-timeline.participant .notification-icon {
+  background: #eaf8f0;
+  color: #20a66a;
+}
+
+
+/* =========================================
+   NOTIFICATION TEXT
+   ========================================= */
+
+.notification-content {
+  flex: 1;
+  min-width: 0;
+
+  padding: 19px 0 0 0;
+
+  text-align: left;
+}
+
+
+/* Title */
+.notification-content strong {
+  display: block;
+
+  margin: 0 0 2px 0;
+
+  font-size: 13.5px;
+  line-height: 14px;
+
+  font-weight: 750;
+
+  color: #0c1c34;
+}
+
+
+/* Message */
+.notification-content p {
+  margin: 0;
+
+  font-size: 11px;
+  line-height: 16px;
+
+  color: #394351;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+
+/* Time */
+.notification-content small {
+  display: block;
+
+  margin-top: 2px;
+
+  font-size: 9.5px;
+  line-height: 12px;
+
+  color: #77869a;
+}
+
+
+/* =========================================
+   REMOVE OLD SEPARATORS
+   ========================================= */
+
+
