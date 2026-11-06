@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState,useRef  } from "react";
 import "../App.css";
 
 
@@ -9,6 +9,9 @@ import {
   Settings,
   Home,
   CalendarDays,
+  Eye,
+  Pencil,
+  Trash2
 } from "lucide-react";
 const API = "http://127.0.0.1:8000/api";
 
@@ -16,12 +19,39 @@ function Dashboard() {
   const [dashboard, setDashboard] = useState({});
   const [groups, setGroups] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [progressHistory, setProgressHistory] = useState([]);
+  const [selectedGroupId, setSelectedGroupId] = useState("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const actionMenuRef = useRef(null);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [activePage, setActivePage] = useState("Dashboard");
+  const [openActionMenu, setOpenActionMenu] = useState(null);
+  // ADD GROUP MODAL
+const [showAddGroup, setShowAddGroup] = useState(false);
+const [groupName, setGroupName] = useState("");
+const [groupCapacity, setGroupCapacity] = useState("");
+const [addingGroup, setAddingGroup] = useState(false);
+const [addGroupError, setAddGroupError] = useState("");
+// VIEW GROUP MODAL
+const [showViewGroup, setShowViewGroup] = useState(false);
+const [selectedGroup, setSelectedGroup] = useState(null);
+const [loadingGroup, setLoadingGroup] = useState(false);
+const [viewGroupError, setViewGroupError] = useState("");
+// EDIT GROUP MODAL
+const [showEditGroup, setShowEditGroup] = useState(false);
+const [editingGroup, setEditingGroup] = useState(null);
+const [editGroupName, setEditGroupName] = useState("");
+const [editGroupCapacity, setEditGroupCapacity] = useState("");
+const [savingEditGroup, setSavingEditGroup] = useState(false);
+const [editGroupError, setEditGroupError] = useState("");
+// DELETE GROUP MODAL
+const [showDeleteModal, setShowDeleteModal] = useState(false);
+const [showDeleteError, setShowDeleteError] = useState(false);
+const [selectedDeleteGroup, setSelectedDeleteGroup] = useState(null);
+const [deletingGroup, setDeletingGroup] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -39,8 +69,13 @@ function Dashboard() {
         if (!res.ok) throw new Error("Failed to load notifications");
         return res.json();
       }),
+      // Progress History
+    fetch(`${API}/dashboard/progress-history`).then((res) => {
+     if (!res.ok) throw new Error("Failed to load progress history");
+     return res.json();
+     }),
     ])
-      .then(([dashboardData, groupsData, notificationsData]) => {
+      .then(([dashboardData, groupsData, notificationsData, progressHistoryData]) => {
         setDashboard(dashboardData || {});
 
         setGroups(
@@ -58,6 +93,11 @@ function Dashboard() {
           (a, b) =>
            new Date(b.created_at) - new Date(a.created_at)
            )
+           );
+           setProgressHistory(
+           Array.isArray(progressHistoryData)
+           ? progressHistoryData
+           : []
            );
 
         setLoading(false);
@@ -81,7 +121,7 @@ function Dashboard() {
 
       return res.json();
     })
-    .then((data) => {
+      .then((data) => {
       console.log("🔔 Notifications data:", data);
 
       const notificationsList = Array.isArray(data)
@@ -103,6 +143,291 @@ function Dashboard() {
                 return () => clearInterval(interval);
                 }, []);
 
+                
+useEffect(() => {
+  const handleClickOutside = (event) => {
+    if (!event.target.closest(".action-menu-container")) {
+      setOpenActionMenu(null);
+    }
+  };
+
+  document.addEventListener("mousedown", handleClickOutside);
+
+  return () => {
+    document.removeEventListener("mousedown", handleClickOutside);
+  };
+}, []);
+
+                
+const handleAddGroup = async (e) => {
+  e.preventDefault();
+
+  setAddGroupError("");
+
+  const name = groupName.trim();
+  const capacity = Number(groupCapacity);
+
+  if (!name) {
+    setAddGroupError("Please enter a group name.");
+    return;
+  }
+
+  if (!Number.isInteger(capacity) || capacity <= 0) {
+    setAddGroupError("Capacity must be a positive whole number.");
+    return;
+  }
+
+  try {
+    setAddingGroup(true);
+
+    const response = await fetch(`${API}/groups`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: name,
+        capacity: capacity,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        result.message || "Unable to create group."
+      );
+    }
+
+    // Refresh groups and dashboard statistics
+    const [groupsResponse, dashboardResponse] =
+      await Promise.all([
+        fetch(`${API}/groups`),
+        fetch(`${API}/dashboard`),
+      ]);
+
+    if (!groupsResponse.ok || !dashboardResponse.ok) {
+      throw new Error("Group created, but dashboard refresh failed. Please refresh the page.");
+    }
+
+    const groupsData = await groupsResponse.json();
+    const dashboardData = await dashboardResponse.json();
+
+    setGroups(
+      Array.isArray(groupsData)
+        ? groupsData
+        : groupsData.groups || []
+    );
+
+    setDashboard(dashboardData || {});
+
+    // Reset form
+    setGroupName("");
+    setGroupCapacity("");
+    setShowAddGroup(false);
+
+  } catch (error) {
+    setAddGroupError(error.message);
+  } finally {
+    setAddingGroup(false);
+  }
+};
+
+     const handleViewGroup = async (groupId) => {
+  try {
+    setLoadingGroup(true);
+    setViewGroupError("");
+    setSelectedGroup(null);
+    setShowViewGroup(true);
+
+    const response = await fetch(`${API}/groups/${groupId}`);
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to load group details.");
+    }
+
+    setSelectedGroup(data);
+
+  } catch (error) {
+    setViewGroupError(error.message);
+  } finally {
+    setLoadingGroup(false);
+  }
+};                
+     // HANDLE EDIT GROUP
+const handleEditGroup = (group) => {
+  setEditingGroup(group);
+
+  setEditGroupName(
+    group.name || group.product_name || ""
+  );
+
+  setEditGroupCapacity(
+    group.capacity ?? group.target_participants ?? ""
+  );
+
+  setEditGroupError("");
+  setShowEditGroup(true);
+};
+// OPEN DELETE GROUP MODAL
+const handleOpenDeleteModal = (group) => {
+  setSelectedDeleteGroup(group);
+
+  const participants = Number(
+    group.current_count ??
+    group.current_participants ??
+    group.participants_count ??
+    0
+  );
+
+  if (participants > 0) {
+    setShowDeleteError(true);
+    setShowDeleteModal(false);
+  } else {
+    setShowDeleteError(false);
+    setShowDeleteModal(true);
+  }
+};
+
+// HANDLE DELETE GROUP
+const handleDeleteGroup = async (groupId) => {
+  try {
+    setDeletingGroup(true);
+
+    const response = await fetch(`${API}/groups/${groupId}`, {
+      method: "DELETE",
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      if (response.status === 422) {
+        setShowDeleteModal(false);
+        setShowDeleteError(true);
+        return;
+      }
+
+      throw new Error(result.message || "Failed to delete group.");
+    }
+
+    // Refresh groups and dashboard
+    const [groupsResponse, dashboardResponse] =
+      await Promise.all([
+        fetch(`${API}/groups`),
+        fetch(`${API}/dashboard`),
+      ]);
+
+    if (!groupsResponse.ok || !dashboardResponse.ok) {
+      throw new Error("Group deleted, but dashboard refresh failed.");
+    }
+
+    const groupsData = await groupsResponse.json();
+    const dashboardData = await dashboardResponse.json();
+
+    setGroups(
+      Array.isArray(groupsData)
+        ? groupsData
+        : groupsData.groups || []
+    );
+
+    setDashboard(dashboardData || {});
+
+    // Close modal
+    setShowDeleteModal(false);
+    setSelectedDeleteGroup(null);
+
+  } catch (error) {
+    console.error("Delete group error:", error);
+  } finally {
+    setDeletingGroup(false);
+  }
+};
+
+
+   // HANDLE UPDATE GROUP
+const handleUpdateGroup = async (e) => {
+  e.preventDefault();
+
+  setEditGroupError("");
+
+  const name = editGroupName.trim();
+  const capacity = Number(editGroupCapacity);
+
+  if (!name) {
+    setEditGroupError("Please enter a group name.");
+    return;
+  }
+
+  if (!Number.isInteger(capacity) || capacity <= 0) {
+    setEditGroupError("Capacity must be a positive whole number.");
+    return;
+  }
+
+  try {
+    setSavingEditGroup(true);
+
+    const response = await fetch(
+      `${API}/groups/${editingGroup.id}`,
+      {
+        method: "PUT",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name,
+          capacity,
+        }),
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        result.message || "Unable to update group."
+      );
+    }
+
+    // Refresh groups and dashboard
+    const [groupsResponse, dashboardResponse] =
+      await Promise.all([
+        fetch(`${API}/groups`),
+        fetch(`${API}/dashboard`),
+      ]);
+
+    if (!groupsResponse.ok || !dashboardResponse.ok) {
+      throw new Error(
+        "Group updated, but refreshing the dashboard failed."
+      );
+    }
+
+    const groupsData = await groupsResponse.json();
+    const dashboardData = await dashboardResponse.json();
+
+    setGroups(
+      Array.isArray(groupsData)
+        ? groupsData
+        : groupsData.groups || []
+    );
+
+    setDashboard(dashboardData || {});
+
+    setShowEditGroup(false);
+    setEditingGroup(null);
+
+  } catch (error) {
+    setEditGroupError(error.message);
+  } finally {
+    setSavingEditGroup(false);
+  }
+};
                 if (loading) {
                 return <div className="loading">Loading dashboard...</div>;
                 }
@@ -177,79 +502,6 @@ function Dashboard() {
   }).length;
 
      return (
-       <div className="app">
-      {/* SIDEBAR */}
-      <aside className="sidebar">
-        <div className="logo">
-  <div>
-    
-            <div className="logo-title">Maamora</div>
-            <div className="logo-subtitle">GROUP MONITOR</div>
-          </div>
-        </div>
-
-        <nav className="navigation">
-          <div
-          className={`nav-item ${activePage === "Dashboard" ? "active" : ""}`}
-          onClick={() => setActivePage("Dashboard")}
-          >
-          <Home className="nav-icon" />
-          <span>Dashboard</span>
-          </div>
-
-          <div
-          className={`nav-item ${activePage === "Groups" ? "active" : ""}`}
-          onClick={() => setActivePage("Groups")}
-         >
-         <Users className="nav-icon" />
-         <span>Groups</span>
-         </div>
-          <div className="nav-item">
-             <UserRound className="nav-icon" />
-              <span>Participants</span>
-          </div>
-          <div className="nav-item">
-            <Bell className="nav-icon" />
-            Notifications
-          </div>
-        </nav>
-
-        <div className="sidebar-bottom">
-          <div className="nav-item">
-            <Settings className="nav-icon" />
-            Settings
-          </div>
-        </div>
-      </aside>
-
-      {/* MAIN AREA */}
-      <div className="main-area">
-        {/* TOP HEADER */}
-        <header className="top-header">
-          <div className="search">
-            <span>⌕</span>
-            <input
-              type="text"
-              placeholder="Search groups, participants..."
-            />
-          </div>
-
-          <div className="user-area">
-            <div className="notification-bell">
-              🔔
-              <span className="notification-count">
-                {notifications.length || 0}
-              </span>
-            </div>
-            <div className="avatar">A</div>
-            <div className="admin">
-              <strong>Admin</strong>
-              <span>⌄</span>
-            </div>
-          </div>
-        </header>
-
-        {/* CONTENT */}
         <main className="content">
           {/* PAGE TITLE */}
           <div className="page-title">
@@ -323,7 +575,18 @@ function Dashboard() {
             <section className="panel groups-panel">
               <div className="panel-header">
                 <h2>Group Overview</h2>
-                <button className="add-button">+ Add Group</button>
+                
+<button
+  type="button"
+  className="add-button"
+  onClick={() => {
+    setOpenActionMenu(null);
+    setShowAddGroup(true);
+  }}
+>
+  + Add Group
+</button>
+
               </div>
               
               <div className="group-tools">
@@ -432,7 +695,69 @@ function Dashboard() {
                             }
                           </span>
                           </td>
-                          <td className="actions">⋮</td>
+                          
+<td className="actions">
+  <div className="action-menu-container" ref={actionMenuRef}>
+    <button
+      type="button"
+      className="action-menu-trigger"
+      onClick={() =>
+        setOpenActionMenu(
+          openActionMenu === (group.id || index)
+            ? null
+            : (group.id || index)
+        )
+      }
+    >
+      ⋮
+    </button>
+
+    {openActionMenu === (group.id || index) && (
+      <div className="action-dropdown">
+
+       
+<button
+  type="button"
+  onClick={() => {
+    console.log("VIEW CLICKED");
+    console.log("GROUP ID:", group.id);
+    setOpenActionMenu(null);
+    handleViewGroup(group.id);
+  }}
+>
+  <Eye size={15} />
+  View
+</button>
+
+
+<button
+  type="button"
+  onClick={() => {
+  setOpenActionMenu(null);
+  handleEditGroup(group);
+}}
+>
+  <Pencil size={15} />
+  Edit
+</button>
+
+<button
+  type="button"
+  className="delete-action"
+  onClick={() => {
+    setOpenActionMenu(null);
+    handleOpenDeleteModal(group);
+  }}
+>
+  <Trash2 size={15} />
+  Delete
+</button>
+
+      </div>
+    )}
+  </div>
+</td>
+
                         </tr>
                       );
                     })}
@@ -551,6 +876,7 @@ function Dashboard() {
               </div>
             </section>
 
+
             {/* QUICK ACTIONS */}
             <section className="panel quick-actions-panel">
               <div className="panel-header">
@@ -569,9 +895,505 @@ function Dashboard() {
               </div>
             </section>
           </div>
-         </main>
+          
+          {/* ADD GROUP MODAL */}
+          {showAddGroup && (
+            <div
+              className="add-group-overlay"
+              onClick={() => {
+                if (!addingGroup) setShowAddGroup(false);
+              }}
+            >
+              <div
+                className="add-group-modal"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* MODAL HEADER */}
+                <div className="add-group-header">
+                  <div className="add-group-heading">
+                    <div className="add-group-icon">
+                      <Users size={27} />
+                    </div>
+
+                    <div>
+                      <h2>Add New Group</h2>
+                      <p>Create a new group and set its capacity.</p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="add-group-close"
+                    onClick={() => setShowAddGroup(false)}
+                    disabled={addingGroup}
+                  >
+                    ×
+                  </button>
+                </div>
+
+                {/* MODAL FORM */}
+                <form onSubmit={handleAddGroup}>
+                  <div className="add-group-form">
+
+                    <div className="form-field">
+                      <label>
+                        Group Name <span>*</span>
+                      </label>
+
+                      <input
+                        type="text"
+                        placeholder="Enter group name"
+                        value={groupName}
+                        onChange={(e) => setGroupName(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="form-field">
+                      <label>
+                        Maximum Capacity <span>*</span>
+                      </label>
+
+                      <input
+                        type="number"
+                        placeholder="Enter group capacity"
+                        min="1"
+                        step="1"
+                        value={groupCapacity}
+                        onChange={(e) => setGroupCapacity(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    {/* INITIAL PARTICIPANTS */}
+                    <div className="group-default-row">
+                      <div className="default-label">
+                        <Users size={21} />
+                        <span>Initial Participants</span>
+                      </div>
+
+                      <div className="default-value">0</div>
+                    </div>
+
+                    {/* DEFAULT STATUS */}
+                    <div className="form-field">
+                      <label>Status</label>
+
+                      <div className="default-status">
+                        <span className="status-dot"></span>
+                        Low
+                      </div>
+                    </div>
+
+                    {addGroupError && (
+                      <p className="add-group-error" role="alert">
+                        {addGroupError}
+                      </p>
+                    )}
+
+                  </div>
+
+                  {/* MODAL FOOTER */}
+                  <div className="add-group-footer">
+                    <button
+                      type="button"
+                      className="cancel-group-btn"
+                      onClick={() => setShowAddGroup(false)}
+                      disabled={addingGroup}
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="submit"
+                      className="submit-group-btn"
+                      disabled={addingGroup}
+                    >
+                      {addingGroup ? "Adding..." : "Add Group"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        {/* VIEW GROUP MODAL */}
+{showViewGroup && (
+  <div className="add-group-overlay">
+    <div className="modal-content view-group-modal">
+
+      <div className="modal-header">
+        <div>
+          <h2>Group Details</h2>
+          <p>View group information and current progress.</p>
+        </div>
+
+        <button
+          type="button"
+          className="close-modal"
+          onClick={() => setShowViewGroup(false)}
+        >
+          ×
+        </button>
+      </div>
+
+      <div className="view-group-body">
+
+        {loadingGroup ? (
+          <p>Loading group details...</p>
+        ) : viewGroupError ? (
+          <p className="form-error">{viewGroupError}</p>
+        ) : selectedGroup ? (
+          <>
+            <div className="view-group-field">
+              <label>Group Name</label>
+              <p>{selectedGroup.name}</p>
+            </div>
+
+            <div className="view-group-field">
+              <label>Group ID</label>
+              <p>{selectedGroup.id}</p>
+            </div>
+
+            <div className="view-group-field">
+              <label>Participants</label>
+              <p>{selectedGroup.current_count}</p>
+            </div>
+
+            <div className="view-group-field">
+              <label>Maximum Capacity</label>
+              <p>{selectedGroup.capacity}</p>
+            </div>
+
+            <div className="view-group-field">
+              <label>Progress</label>
+              <p>{selectedGroup.percentage}%</p>
+            </div>
+
+            <div className="view-group-field">
+              <label>Status</label>
+              <p>{selectedGroup.status}</p>
+            </div>
+          </>
+        ) : null}
+
+      </div>
+
+      <div className="modal-footer">
+        <button
+          type="button"
+          onClick={() => setShowViewGroup(false)}
+        >
+          Close
+        </button>
+      </div>
+
+    </div>
+  </div>
+)}
+
+{/* EDIT GROUP MODAL */}
+{showEditGroup && editingGroup && (
+  <div
+    className="edit-group-overlay"
+    onClick={() => {
+      if (!savingEditGroup) setShowEditGroup(false);
+    }}
+  >
+    <div
+      className="edit-group-modal"
+      onClick={(e) => e.stopPropagation()}
+    >
+
+      {/* HEADER */}
+      <div className="edit-group-header">
+        <div className="edit-group-heading">
+          <div className="edit-group-icon">
+            <Users size={27} />
+          </div>
+
+          <div>
+            <h2>Edit Group</h2>
+            <p>Update group information and capacity.</p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="edit-group-close"
+          disabled={savingEditGroup}
+          onClick={() => setShowEditGroup(false)}
+        >
+          ×
+        </button>
+      </div>
+
+      {/* FORM */}
+      <form onSubmit={handleUpdateGroup}>
+
+        <div className="edit-group-body">
+
+          {editGroupError && (
+  <div className="edit-error-notification" role="alert">
+    <span className="edit-error-icon">!</span>
+
+    <div>
+      <strong>Unable to update group</strong>
+      <p>{editGroupError}</p>
+    </div>
+  </div>
+)}
+
+          {/* GROUP NAME */}
+          <div className="edit-form-field">
+            <label>
+              Group Name <span>*</span>
+            </label>
+
+            <input
+              type="text"
+              value={editGroupName}
+              onChange={(e) =>
+                setEditGroupName(e.target.value)
+              }
+              placeholder="Enter group name"
+              required
+            />
+          </div>
+
+          {/* CAPACITY */}
+          <div className="edit-form-field">
+            <label>
+              Maximum Capacity <span>*</span>
+            </label>
+
+            <input
+              type="number"
+              min="1"
+              value={editGroupCapacity}
+              onChange={(e) =>
+                setEditGroupCapacity(e.target.value)
+              }
+              required
+            />
+          </div>
+
+          {/* CURRENT PARTICIPANTS */}
+          <div className="edit-form-field">
+            <label>Current Participants</label>
+
+            <input
+              type="number"
+              value={
+                editingGroup.current_count ??
+                editingGroup.participants_count ??
+                0
+              }
+              disabled
+            />
+
+            <small>
+              Managed through participant records.
+            </small>
+          </div>
+
+          {/* CURRENT STATUS */}
+          <div className="edit-status-row">
+            <label>Current Status</label>
+
+            <span
+              className={`edit-status-badge ${
+                (() => {
+                  const count = Number(
+                    editingGroup.current_count ??
+                    editingGroup.participants_count ?? 0
+                  );
+
+                  const capacity = Number(editGroupCapacity);
+                  const percentage =
+                    capacity > 0
+                      ? (count / capacity) * 100
+                      : 0;
+
+                  return percentage >= 100
+                    ? "full"
+                    : percentage >= 80
+                    ? "near-full"
+                    : "low";
+                })()
+              }`}
+            >
+              {(() => {
+                const count = Number(
+                  editingGroup.current_count ??
+                  editingGroup.participants_count ?? 0
+                );
+
+                const capacity = Number(editGroupCapacity);
+                const percentage =
+                  capacity > 0
+                    ? (count / capacity) * 100
+                    : 0;
+
+                return percentage >= 100
+                  ? "Completed"
+                  : percentage >= 80
+                  ? "Almost Complete"
+                  : "Low";
+              })()}
+            </span>
+          </div>
+
+        </div>
+
+        {/* FOOTER */}
+        <div className="edit-group-footer">
+
+          <button
+            type="button"
+            className="edit-cancel-btn"
+            disabled={savingEditGroup}
+            onClick={() => setShowEditGroup(false)}
+          >
+            Cancel
+          </button>
+
+          <button
+            type="submit"
+            className="edit-save-btn"
+            disabled={savingEditGroup}
+          >
+            {savingEditGroup
+              ? "Saving..."
+              : "Save Changes"}
+          </button>
+
+        </div>
+
+      </form>
+    </div>
+  </div>
+)}
+
+{/* DELETE GROUP CONFIRMATION MODAL */}
+{showDeleteModal && selectedDeleteGroup && (
+  <div
+    className="delete-modal-overlay"
+    onClick={() => {
+      if (!deletingGroup) setShowDeleteModal(false);
+    }}
+  >
+    <div
+      className="delete-modal-content"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        className="delete-modal-close"
+        type="button"
+        onClick={() => setShowDeleteModal(false)}
+        disabled={deletingGroup}
+      >
+        ×
+      </button>
+
+      <div className="delete-modal-icon">
+        <Trash2 size={30} />
+      </div>
+
+      <h2>Delete this group?</h2>
+
+      <p className="delete-modal-message">
+        This group has no participants. Are you sure
+        you want to delete it?
+      </p>
+
+      <div className="delete-group-info">
+        <div className="delete-group-icon">
+          <Users size={23} />
+        </div>
+
+        <div className="delete-group-details">
+          <strong>{selectedDeleteGroup.name}</strong>
+
+          <div className="delete-group-meta">
+            <span>
+              <UserRound size={15} />
+              {selectedDeleteGroup.current_count ?? 0} Participants
+            </span>
+
+            <span>
+              {selectedDeleteGroup.capacity} Capacity
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="delete-modal-actions">
+        <button
+          type="button"
+          className="delete-cancel-btn"
+          disabled={deletingGroup}
+          onClick={() => setShowDeleteModal(false)}
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          className="delete-confirm-btn"
+          disabled={deletingGroup}
+          onClick={() => handleDeleteGroup(selectedDeleteGroup.id)}
+        >
+          <Trash2 size={16} />
+          {deletingGroup ? "Deleting..." : "Delete Group"}
+        </button>
       </div>
     </div>
+  </div>
+)}
+
+{/* CANNOT DELETE GROUP MODAL */}
+{showDeleteError && (
+  <div className="delete-modal-overlay">
+    <div className="delete-modal-content delete-error-modal">
+
+      <button
+        type="button"
+        className="delete-modal-close"
+        onClick={() => {
+          setShowDeleteError(false);
+          setSelectedDeleteGroup(null);
+        }}
+      >
+        ×
+      </button>
+
+      <div className="delete-warning-icon">
+        !
+      </div>
+
+      <h2>Cannot Delete Group</h2>
+
+      <p className="delete-modal-message">
+        This group contains registered participants and
+        cannot be deleted.
+      </p>
+
+      <button
+        type="button"
+        className="delete-return-btn"
+        onClick={() => {
+          setShowDeleteError(false);
+          setSelectedDeleteGroup(null);
+        }}
+      >
+        ← &nbsp; Return to Groups
+      </button>
+
+    </div>
+  </div>
+)}
+
+         </main>
   );
 }
 
