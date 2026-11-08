@@ -1,4 +1,10 @@
 import { useEffect, useState } from "react";
+import { Users, Hourglass, AlertTriangle, Check } from "lucide-react";
+import {
+  UsersRound,
+  Plus,
+} from "lucide-react";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 import "../App.css";
 
 const API = "http://127.0.0.1:8000/api";
@@ -13,6 +19,27 @@ function Groups() {
   const totalGroups = groups.length;
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
+  const [showAddGroup, setShowAddGroup] = useState(false);
+const [addingGroup, setAddingGroup] = useState(false);
+const [groupName, setGroupName] = useState("");
+const [groupCapacity, setGroupCapacity] = useState("");
+const [addGroupError, setAddGroupError] = useState("");
+const [showEditGroup, setShowEditGroup] = useState(false);
+const [editingGroup, setEditingGroup] = useState(null);
+
+const [editGroupName, setEditGroupName] = useState("");
+const [editGroupCapacity, setEditGroupCapacity] = useState("");
+
+const [savingEditGroup, setSavingEditGroup] = useState(false);
+const [editGroupError, setEditGroupError] = useState("");
+// DELETE GROUP MODAL
+const [showDeleteModal, setShowDeleteModal] = useState(false);
+const [showDeleteError, setShowDeleteError] = useState(false);
+const [selectedDeleteGroup, setSelectedDeleteGroup] = useState(null);
+const [deletingGroup, setDeletingGroup] = useState(false);
+
+const [currentPage, setCurrentPage] = useState(1);
+const groupsPerPage = 5;
 
   const filteredGroups = groups.filter((group) => {
   const matchesSearch = (group.name || "")
@@ -25,6 +52,14 @@ function Groups() {
 
   return matchesSearch && matchesStatus;
   });
+  const totalPages = Math.ceil(filteredGroups.length / groupsPerPage);
+
+const startIndex = (currentPage - 1) * groupsPerPage;
+
+const currentGroups = filteredGroups.slice(
+  startIndex,
+  startIndex + groupsPerPage
+);
 
 const completedGroups = groups.filter(
   (group) => Number(group.percentage) >= 100
@@ -39,6 +74,218 @@ const nearFullGroups = groups.filter(
 const inProgressGroups = groups.filter(
   (group) => Number(group.percentage) < 80
 ).length;
+const handleAddGroup = async (e) => {
+  e.preventDefault();
+
+  setAddGroupError("");
+
+  if (!groupName.trim() || !groupCapacity || Number(groupCapacity) <= 0) {
+    setAddGroupError("Please enter a valid group name and capacity.");
+    return;
+  }
+
+  try {
+    setAddingGroup(true);
+
+    const response = await fetch(`${API}/groups`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        name: groupName.trim(),
+        capacity: Number(groupCapacity),
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.message || "Failed to add group.");
+    }
+
+    // Refresh groups and dashboard statistics
+    const [groupsResponse, dashboardResponse] = await Promise.all([
+      fetch(`${API}/groups`),
+      fetch(`${API}/dashboard`),
+    ]);
+
+    if (!groupsResponse.ok || !dashboardResponse.ok) {
+      throw new Error("Group added, but refreshing data failed.");
+    }
+
+    const groupsData = await groupsResponse.json();
+    const dashboardData = await dashboardResponse.json();
+
+    setGroups(
+      Array.isArray(groupsData) ? groupsData : groupsData.groups || []
+    );
+
+    setDashboard(dashboardData);
+
+    setShowAddGroup(false);
+    setGroupName("");
+    setGroupCapacity("");
+    setAddGroupError("");
+  } catch (error) {
+    console.error("Add group error:", error);
+    setAddGroupError(error.message);
+  } finally {
+    setAddingGroup(false);
+  }
+};
+const handleEditGroup = (group) => {
+  setEditingGroup(group);
+  setEditGroupName(group.name);
+  setEditGroupCapacity(group.capacity);
+  setEditGroupError("");
+  setShowEditGroup(true);
+};
+const handleOpenDeleteModal = (group) => {
+  setSelectedDeleteGroup(group);
+
+  const participants = Number(
+    group.current_count ??
+    group.current_participants ??
+    group.participants_count ??
+    0
+  );
+
+  if (participants > 0) {
+    setShowDeleteError(true);
+    setShowDeleteModal(false);
+  } else {
+    setShowDeleteError(false);
+    setShowDeleteModal(true);
+  }
+};
+const handleDeleteGroup = async (groupId) => {
+  try {
+    setDeletingGroup(true);
+
+    const response = await fetch(`${API}/groups/${groupId}`, {
+      method: "DELETE",
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      if (response.status === 422) {
+        setShowDeleteModal(false);
+        setShowDeleteError(true);
+        return;
+      }
+
+      throw new Error(result.message || "Failed to delete group.");
+    }
+
+    // Refresh groups
+    const groupsResponse = await fetch(`${API}/groups`);
+
+    if (!groupsResponse.ok) {
+      throw new Error("Group deleted, but refreshing groups failed.");
+    }
+
+    const groupsData = await groupsResponse.json();
+
+    setGroups(
+      Array.isArray(groupsData)
+        ? groupsData
+        : groupsData.groups || []
+    );
+
+    // Close modal and clear selection
+    setShowDeleteModal(false);
+    setSelectedDeleteGroup(null);
+
+    // Close details panel if the deleted group was selected
+    if (selectedGroup?.id === groupId) {
+      setSelectedGroup(null);
+    }
+
+  } catch (error) {
+    console.error("Delete group error:", error);
+  } finally {
+    setDeletingGroup(false);
+  }
+};
+const handleUpdateGroup = async (e) => {
+  e.preventDefault();
+
+  setEditGroupError("");
+
+  if (!editGroupName.trim() || !editGroupCapacity || Number(editGroupCapacity) <= 0) {
+    setEditGroupError("Please enter a valid group name and capacity.");
+    return;
+  }
+
+  const currentParticipants = Number(
+    editingGroup.current_count ??
+    editingGroup.participants_count ??
+    0
+  );
+
+  if (Number(editGroupCapacity) < currentParticipants) {
+    setEditGroupError(
+      "Capacity cannot be lower than the current number of participants."
+    );
+    return;
+  }
+
+  try {
+    setSavingEditGroup(true);
+
+    const response = await fetch(`${API}/groups/${editingGroup.id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        name: editGroupName.trim(),
+        capacity: Number(editGroupCapacity),
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        result.message || "Failed to update group."
+      );
+    }
+
+    const groupsResponse = await fetch(`${API}/groups`);
+
+    if (!groupsResponse.ok) {
+      throw new Error("Group updated, but refreshing data failed.");
+    }
+
+    const groupsData = await groupsResponse.json();
+
+    setGroups(
+      Array.isArray(groupsData)
+        ? groupsData
+        : groupsData.groups || []
+    );
+
+    setShowEditGroup(false);
+    setEditingGroup(null);
+    setEditGroupName("");
+    setEditGroupCapacity("");
+    setEditGroupError("");
+
+  } catch (error) {
+    console.error("Update group error:", error);
+    setEditGroupError(error.message);
+  } finally {
+    setSavingEditGroup(false);
+  }
+};
 
   useEffect(() => {
     fetch(`${API}/groups`)
@@ -126,43 +373,43 @@ const chartPoints = selectedGroupHistory
         </div>
       </div>
       
-{/* GROUP STATISTICS */}
+      {/* GROUP STATISTICS */}
+      
 <div className="groups-stats-grid">
 
-  <div className="groups-stat-card">
-    <div className="groups-stat-icon orange">👥</div>
+  <div className="stat-card orange">
+    <div className="stat-icon">👥</div>
     <div>
-      <h2>{totalGroups}</h2>
-      <p>Total Groups</p>
+      <strong>{totalGroups}</strong>
+      <h3>Total Groups</h3>
     </div>
   </div>
 
-  <div className="groups-stat-card">
-    <div className="groups-stat-icon purple">⌛</div>
+  <div className="stat-card purple">
+    <div className="stat-icon">⌛</div>
     <div>
-      <h2>{inProgressGroups}</h2>
-      <p>In Progress</p>
-      <small>&lt; 80%</small>
+      <strong>{inProgressGroups}</strong>
+      <h3>In Progress</h3>
+      <p>&lt; 80%</p>
     </div>
   </div>
 
- <div className="groups-stat-card">
-    <div className="groups-stat-icon warning">⚠</div>
+  <div className="stat-card yellow">
+    <div className="stat-icon">⚠️</div>
     <div>
-      <h2>{nearFullGroups}</h2>
-      <p>Near Full</p>
-      <small>≥ 80%</small>
+      <strong>{nearFullGroups}</strong>
+      <h3>Near Full</h3>
+      <p>≥ 80%</p>
     </div>
   </div>
 
-
-  <div className="groups-stat-card">
-    <div className="groups-stat-icon green">✓</div>
+  <div className="stat-card red">
+    <div className="stat-icon">✓</div>
     <div>
-      <h2>{completedGroups}</h2>
-      <p>Completed</p>
+      <strong>{completedGroups}</strong>
+      <h3>Completed</h3>
     </div>
-  </div> 
+  </div>
 
 </div>
 
@@ -177,9 +424,18 @@ const chartPoints = selectedGroupHistory
   <div className="panel-header">
     <h2>All Groups</h2>
 
-    <button className="add-group-btn">
-      + Add Group
-    </button>
+    <button
+  type="button"
+  className="add-group-btn"
+  onClick={() => {
+    setGroupName("");
+    setGroupCapacity("");
+    setAddGroupError("");
+    setShowAddGroup(true);
+  }}
+>
+  + Add Group
+</button>
   </div>
 
   <div className="groups-toolbar">
@@ -187,12 +443,18 @@ const chartPoints = selectedGroupHistory
     type="text"
     placeholder="Search groups..."
     value={search}
-    onChange={(e) => setSearch(e.target.value)}
+    onChange={(e) => {
+  setSearch(e.target.value);
+  setCurrentPage(1);
+}}
   />
 
   <select
     value={statusFilter}
-    onChange={(e) => setStatusFilter(e.target.value)}
+    onChange={(e) => {
+  setStatusFilter(e.target.value);
+  setCurrentPage(1);
+}}
   >
     <option value="All Status">All Status</option>
     <option value="Low">Low</option>
@@ -217,7 +479,7 @@ const chartPoints = selectedGroupHistory
 
     <tbody>
       {filteredGroups.length > 0 ? (
-        filteredGroups.map((group) => {
+        currentGroups.map((group) => {
           const percentage = Number(group.percentage) || 0;
 
           const statusClass =
@@ -261,14 +523,38 @@ const chartPoints = selectedGroupHistory
                     : group.status}
                 </span>
               </td>
+              
               <td>
-              <button
-              className="view-group-btn"
-              onClick={() => setSelectedGroup(group)}
-              >
-               View
-              </button>
-              </td>
+  <div className="group-actions">
+    <button
+      type="button"
+      className="action-icon view-action"
+      title="View"
+      onClick={() => setSelectedGroup(group)}
+    >
+      <Eye size={17} />
+    </button>
+
+    <button
+      type="button"
+      className="action-icon edit-action"
+      title="Edit"
+      onClick={() => handleEditGroup(group)}
+    >
+      <Pencil size={17} />
+    </button>
+
+   <button
+  type="button"
+  className="action-icon delete-action"
+  title="Delete"
+  onClick={() => handleOpenDeleteModal(group)}
+>
+  <Trash2 size={17} />
+</button>
+  </div>
+</td>
+             
             </tr>
           );
         })
@@ -282,7 +568,44 @@ const chartPoints = selectedGroupHistory
     </tbody>
   </table>
 </div>
+{filteredGroups.length > 0 && (
+  <div className="groups-pagination">
+    <span>
+      Showing {startIndex + 1} to{" "}
+      {Math.min(startIndex + groupsPerPage, filteredGroups.length)}
+      {" "}of {filteredGroups.length} groups
+    </span>
 
+    <div className="pagination-buttons">
+      <button
+        type="button"
+        disabled={currentPage === 1}
+        onClick={() => setCurrentPage(currentPage - 1)}
+      >
+        Previous
+      </button>
+
+      {Array.from({ length: totalPages }, (_, index) => (
+        <button
+          type="button"
+          key={index + 1}
+          className={currentPage === index + 1 ? "active" : ""}
+          onClick={() => setCurrentPage(index + 1)}
+        >
+          {index + 1}
+        </button>
+      ))}
+
+      <button
+        type="button"
+        disabled={currentPage === totalPages}
+        onClick={() => setCurrentPage(currentPage + 1)}
+      >
+        Next
+      </button>
+    </div>
+  </div>
+)}
 </section>
 {selectedGroup && (
   <section className="group-details-panel">
@@ -498,6 +821,407 @@ const chartPoints = selectedGroupHistory
 </section>
 )}
   </div>
+  
+{/* ADD GROUP MODAL */}
+{showAddGroup && (
+  <div
+    className="add-group-overlay"
+    onClick={() => {
+      if (!addingGroup) setShowAddGroup(false);
+    }}
+  >
+    <div
+      className="add-group-modal"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {/* MODAL HEADER */}
+      <div className="add-group-header">
+        <div className="add-group-heading">
+          <div className="add-group-icon">
+            <UsersRound size={30} />
+            <Plus size={15} className="group-icon-plus" />
+          </div>
+
+          <div>
+            <h2>Add New Group</h2>
+            <p>Create a new group and set its capacity.</p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="add-group-close"
+          onClick={() => setShowAddGroup(false)}
+          disabled={addingGroup}
+        >
+          ×
+        </button>
+      </div>
+
+      {/* MODAL FORM */}
+      <form onSubmit={handleAddGroup}>
+        <div className="add-group-form">
+          <div className="form-field">
+            <label>
+              Group Name <span>*</span>
+            </label>
+
+            <input
+              type="text"
+              placeholder="Enter group name"
+              value={groupName}
+              onChange={(e) => setGroupName(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="form-field">
+            <label>
+              Maximum Capacity <span>*</span>
+            </label>
+
+            <input
+              type="number"
+              placeholder="Enter group capacity"
+              min="1"
+              step="1"
+              value={groupCapacity}
+              onChange={(e) => setGroupCapacity(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="group-default-row">
+            <div className="default-label">
+              <Users size={21} />
+              <span>Initial Participants</span>
+            </div>
+
+            <div className="default-value">0</div>
+          </div>
+
+          <div className="form-field">
+            <label>Status</label>
+
+            <div className="default-status">
+              <span className="status-dot"></span>
+              Low
+            </div>
+          </div>
+
+          {addGroupError && (
+            <p className="add-group-error" role="alert">
+              {addGroupError}
+            </p>
+          )}
+        </div>
+
+        {/* MODAL FOOTER */}
+        <div className="add-group-footer">
+          <button
+            type="button"
+            className="cancel-group-btn"
+            onClick={() => setShowAddGroup(false)}
+            disabled={addingGroup}
+          >
+            Cancel
+          </button>
+
+          <button
+            type="submit"
+            className="submit-group-btn"
+            disabled={addingGroup}
+          >
+            <Plus size={18} />
+            {addingGroup ? "Adding..." : "Add Group"}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
+   
+{/* EDIT GROUP MODAL */}
+{showEditGroup && editingGroup && (
+  <div
+    className="edit-group-overlay"
+    onClick={() => {
+      if (!savingEditGroup) setShowEditGroup(false);
+    }}
+  >
+    <div
+      className="edit-group-modal"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {/* HEADER */}
+      <div className="edit-group-header">
+        <div className="edit-group-heading">
+          <div className="edit-group-icon">
+            <Users size={27} />
+          </div>
+
+          <div>
+            <h2>Edit Group</h2>
+            <p>Update group information and capacity.</p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="edit-group-close"
+          disabled={savingEditGroup}
+          onClick={() => setShowEditGroup(false)}
+        >
+          ×
+        </button>
+      </div>
+
+      {/* FORM */}
+      <form onSubmit={handleUpdateGroup}>
+        <div className="edit-group-body">
+
+          {editGroupError && (
+            <div className="edit-error-notification" role="alert">
+              <span className="edit-error-icon">!</span>
+              <div>
+                <strong>Unable to update group</strong>
+                <p>{editGroupError}</p>
+              </div>
+            </div>
+          )}
+
+          {/* GROUP NAME */}
+          <div className="edit-form-field">
+            <label>
+              Group Name <span>*</span>
+            </label>
+
+            <input
+              type="text"
+              value={editGroupName}
+              onChange={(e) => setEditGroupName(e.target.value)}
+              placeholder="Enter group name"
+              required
+            />
+          </div>
+
+          {/* CAPACITY */}
+          <div className="edit-form-field">
+            <label>
+              Maximum Capacity <span>*</span>
+            </label>
+
+            <input
+              type="number"
+              min="1"
+              step="1"
+              value={editGroupCapacity}
+              onChange={(e) => setEditGroupCapacity(e.target.value)}
+              required
+            />
+          </div>
+
+          {/* CURRENT PARTICIPANTS */}
+          <div className="edit-form-field">
+            <label>Current Participants</label>
+
+            <input
+              type="number"
+              value={
+                editingGroup.current_count ??
+                editingGroup.participants_count ??
+                0
+              }
+              disabled
+            />
+
+            <small>
+              Managed through participant records.
+            </small>
+          </div>
+
+          {/* CURRENT STATUS */}
+          <div className="edit-status-row">
+            <label>Current Status</label>
+
+            <span
+              className={`edit-status-badge ${
+                (() => {
+                  const count = Number(
+                    editingGroup.current_count ??
+                    editingGroup.participants_count ?? 0
+                  );
+
+                  const capacity = Number(editGroupCapacity);
+                  const percentage =
+                    capacity > 0 ? (count / capacity) * 100 : 0;
+
+                  return percentage >= 100
+                    ? "full"
+                    : percentage >= 80
+                    ? "near-full"
+                    : "low";
+                })()
+              }`}
+            >
+              {(() => {
+                const count = Number(
+                  editingGroup.current_count ??
+                  editingGroup.participants_count ?? 0
+                );
+
+                const capacity = Number(editGroupCapacity);
+                const percentage =
+                  capacity > 0 ? (count / capacity) * 100 : 0;
+
+                return percentage >= 100
+                  ? "Completed"
+                  : percentage >= 80
+                  ? "Almost Complete"
+                  : "Low";
+              })()}
+            </span>
+          </div>
+        </div>
+
+        {/* FOOTER */}
+        <div className="edit-group-footer">
+          <button
+            type="button"
+            className="edit-cancel-btn"
+            disabled={savingEditGroup}
+            onClick={() => setShowEditGroup(false)}
+          >
+            Cancel
+          </button>
+
+          <button
+            type="submit"
+            className="edit-save-btn"
+            disabled={savingEditGroup}
+          >
+            {savingEditGroup ? "Saving..." : "Save Changes"}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
+
+{/* DELETE CONFIRMATION MODAL */}
+{showDeleteModal && selectedDeleteGroup && (
+  <div
+    className="delete-modal-overlay"
+    onClick={() => {
+      if (!deletingGroup) setShowDeleteModal(false);
+    }}
+  >
+    <div
+      className="delete-modal-content"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        className="delete-modal-close"
+        onClick={() => setShowDeleteModal(false)}
+        disabled={deletingGroup}
+      >
+        ×
+      </button>
+
+      <div className="delete-modal-icon">
+        <Trash2 size={28} />
+      </div>
+
+      <h2>Delete Group?</h2>
+
+      <p className="delete-modal-message">
+        This group has no participants. Are you sure you want to delete it?
+      </p>
+
+      <div className="delete-group-info">
+        <div className="delete-group-icon">
+          <Users size={22} />
+        </div>
+
+        <div className="delete-group-details">
+          <strong>{selectedDeleteGroup.name}</strong>
+          <span className="delete-group-meta">
+            {selectedDeleteGroup.current_count ?? 0} Participants
+            {" · "}
+            Capacity: {selectedDeleteGroup.capacity}
+          </span>
+        </div>
+      </div>
+
+      <div className="delete-modal-actions">
+        <button
+          type="button"
+          className="delete-cancel-btn"
+          onClick={() => setShowDeleteModal(false)}
+          disabled={deletingGroup}
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          className="delete-confirm-btn"
+          onClick={() => handleDeleteGroup(selectedDeleteGroup.id)}
+          disabled={deletingGroup}
+        >
+          {deletingGroup ? "Deleting..." : "Delete Group"}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+
+{/* CANNOT DELETE GROUP MODAL */}
+{showDeleteError && (
+  <div className="delete-modal-overlay">
+    <div className="delete-modal-content delete-error-modal">
+
+      <button
+        type="button"
+        className="delete-modal-close"
+        onClick={() => {
+          setShowDeleteError(false);
+          setSelectedDeleteGroup(null);
+        }}
+      >
+        ×
+      </button>
+
+      <div className="delete-warning-icon">
+        !
+      </div>
+
+      <h2>Cannot Delete Group</h2>
+
+      <p className="delete-modal-message">
+        This group contains registered participants and
+        cannot be deleted.
+      </p>
+
+      <button
+        type="button"
+        className="delete-return-btn"
+        onClick={() => {
+          setShowDeleteError(false);
+          setSelectedDeleteGroup(null);
+        }}
+      >
+        ← &nbsp; Return to Groups
+      </button>
+
+    </div>
+  </div>
+)}
+
+
+    
   </main>
   );
 }

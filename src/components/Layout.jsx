@@ -8,6 +8,7 @@ import {
   Home,
   CalendarDays,
 } from "lucide-react";
+import maamoraLogo from "../assets/maamora_logo.png";
 
 function Layout() {
   return (
@@ -15,9 +16,9 @@ function Layout() {
       {/* SIDEBAR */}
       <aside className="sidebar">
         <div className="logo">
-          <div>
-            <div className="logo-title">Maamora</div>
-            <div className="logo-subtitle">GROUP MONITOR</div>
+          <div className="logo">
+             <img src={maamoraLogo} alt="Maamora Logo" className="logo-image" />
+             <div className="logo-subtitle"><h3>GROUP MONITOR</h3></div>
           </div>
         </div>
 

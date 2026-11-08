@@ -1,4 +1,5 @@
 import { useEffect, useState,useRef  } from "react";
+import { useNavigate } from "react-router-dom";
 import "../App.css";
 
 
@@ -11,9 +12,38 @@ import {
   CalendarDays,
   Eye,
   Pencil,
-  Trash2
+  Trash2,
+  Mail,
+  Phone,
+   UserRoundPlus,
 } from "lucide-react";
+import { UsersRound, Plus } from "lucide-react";
 const API = "http://127.0.0.1:8000/api";
+
+
+const formatTimeAgo = (date) => {
+  if (!date) return "Just now";
+
+  const seconds = Math.floor(
+    (new Date() - new Date(date)) / 1000
+  );
+
+  if (seconds < 60) return "Just now";
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes} ${minutes === 1 ? "minute" : "minutes"} ago`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  }
+
+  const days = Math.floor(hours / 24);
+  return `${days} ${days === 1 ? "day" : "days"} ago`;
+};
+
 
 function Dashboard() {
   const [dashboard, setDashboard] = useState({});
@@ -24,6 +54,21 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const actionMenuRef = useRef(null);
+  const navigate = useNavigate();
+  const [groupsPage, setGroupsPage] = useState(1);
+  const groupsPerPage = 5;
+  // QUICK ADD PARTICIPANT MODAL
+const [showQuickAddParticipant, setShowQuickAddParticipant] = useState(false);
+
+const [quickParticipant, setQuickParticipant] = useState({
+  name: "",
+  email: "",
+  phone: "",
+  group_id: "",
+});
+
+const [savingQuickParticipant, setSavingQuickParticipant] = useState(false);
+const [quickParticipantError, setQuickParticipantError] = useState("");
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
@@ -157,7 +202,9 @@ useEffect(() => {
     document.removeEventListener("mousedown", handleClickOutside);
   };
 }, []);
-
+useEffect(() => {
+  setGroupsPage(1);
+}, [search, statusFilter]);
                 
 const handleAddGroup = async (e) => {
   e.preventDefault();
@@ -465,6 +512,14 @@ const handleUpdateGroup = async (e) => {
 
     return matchesSearch && matchesStatus;
   });
+  const totalGroupsPages = Math.ceil(
+  filteredGroups.length / groupsPerPage
+);
+
+const currentGroups = filteredGroups.slice(
+  (groupsPage - 1) * groupsPerPage,
+  groupsPage * groupsPerPage
+);
 
   // =========================
   // CAPACITY DATA
@@ -500,6 +555,73 @@ const handleUpdateGroup = async (e) => {
     const percentage = capacity > 0 ? (count / capacity) * 100 : 0;
     return percentage >= 100;
   }).length;
+
+  const handleQuickAddParticipant = async (e) => {
+  e.preventDefault();
+
+  setSavingQuickParticipant(true);
+  setQuickParticipantError("");
+
+  try {
+    const response = await fetch(
+      `${API}/groups/${quickParticipant.group_id}/participants`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          name: quickParticipant.name,
+          email: quickParticipant.email,
+          phone: quickParticipant.phone,
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Unable to add participant.");
+    }
+
+    // Refresh Dashboard data
+    const [groupsResponse, dashboardResponse] = await Promise.all([
+      fetch(`${API}/groups`),
+      fetch(`${API}/dashboard`),
+    ]);
+
+    if (!groupsResponse.ok || !dashboardResponse.ok) {
+      throw new Error("Participant added, but data refresh failed.");
+    }
+
+    const [groupsData, dashboardData] = await Promise.all([
+      groupsResponse.json(),
+      dashboardResponse.json(),
+    ]);
+
+    setGroups(groupsData);
+    setDashboard(dashboardData);
+
+    setQuickParticipant({
+      name: "",
+      email: "",
+      phone: "",
+      group_id: "",
+    });
+
+    setShowQuickAddParticipant(false);
+
+  } catch (error) {
+    setQuickParticipantError(
+      error.message === "Ce groupe a atteint sa capacité maximale."
+        ? "This group has reached its maximum capacity."
+        : error.message || "Something went wrong."
+    );
+  } finally {
+    setSavingQuickParticipant(false);
+  }
+};
 
      return (
         <main className="content">
@@ -552,7 +674,7 @@ const handleUpdateGroup = async (e) => {
               <div className="stat-icon">⚠️</div>
               <div>
                 <strong>
-                  {dashboard.nearly_complete_groups_count || 0}
+                  {nearFullGroups}
                 </strong>
                 <h3>Near Full</h3>
                 <p>Groups at 80% or more</p>
@@ -624,7 +746,7 @@ const handleUpdateGroup = async (e) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredGroups.map((group, index) => {
+                    {currentGroups.map((group, index) => {
                       const capacity = Number(
                         group.capacity || group.target_participants || 0
                       );
@@ -764,13 +886,60 @@ const handleUpdateGroup = async (e) => {
                   </tbody>
                 </table>
               </div>
+              {/* GROUPS PAGINATION */}
+<div className="groups-pagination">
+  <span>
+    Showing {filteredGroups.length === 0 ? 0 : (groupsPage - 1) * groupsPerPage + 1}
+    {" "}to{" "}
+    {Math.min(groupsPage * groupsPerPage, filteredGroups.length)}
+    {" "}of {filteredGroups.length} groups
+  </span>
+
+  <div className="pagination-controls">
+    <button
+      type="button"
+      disabled={groupsPage === 1}
+      onClick={() => setGroupsPage((page) => page - 1)}
+    >
+      ‹
+    </button>
+
+    {Array.from(
+      { length: totalGroupsPages },
+      (_, index) => index + 1
+    ).map((page) => (
+      <button
+        type="button"
+        key={page}
+        className={groupsPage === page ? "active" : ""}
+        onClick={() => setGroupsPage(page)}
+      >
+        {page}
+      </button>
+    ))}
+
+    <button
+      type="button"
+      disabled={groupsPage === totalGroupsPages || totalGroupsPages === 0}
+      onClick={() => setGroupsPage((page) => page + 1)}
+    >
+      ›
+    </button>
+  </div>
+</div>
             </section>
 
             {/* RECENT NOTIFICATIONS */}
             <section className="panel notifications-panel">
               <div className="panel-header">
                 <h2>Recent Notifications</h2>
-                <button className="view-all">View all →</button>
+               <button
+                    type="button"
+                    className="view-all-btn"
+                    onClick={() => navigate("/notifications")}
+                    >
+                    View all →
+                   </button>
               </div>
 
              <div className="notification-list">
@@ -830,7 +999,7 @@ const handleUpdateGroup = async (e) => {
 
             <p>{message}</p>
 
-            <small>Recently</small>
+            <small>{formatTimeAgo(notification.created_at)}</small>
           </div>
 
             </div>
@@ -883,18 +1052,231 @@ const handleUpdateGroup = async (e) => {
                 <h2>Quick Actions</h2>
               </div>
               <div className="quick-actions" style={{ display: "flex", gap: "12px" }}>
-                <button className="quick-action active-action" style={{ flex: 1, padding: "12px", border: "1px solid #f27d2a", borderRadius: "8px", background: "#fff0e4", cursor: "pointer", textAlign: "left" }}>
-                  <strong style={{ color: "#f27d2a", display: "block" }}>+ Add Participant</strong>
-                  <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#657895" }}>Add a new participant to a group</p>
-                </button>
+                 <button
+                      type="button"
+                      className="quick-action active-action"
+                      onClick={() => {
+                           setQuickParticipantError("");
+                           setShowQuickAddParticipant(true);
+                           }}
+                      style={{
+                          flex: 1,
+                          padding: "12px",
+                          border: "1px solid #f27d2a",
+                          borderRadius: "8px",
+                          cursor: "pointer",
+                          textAlign: "left",
+                           }}
+                          >
+                          <strong style={{ color: "#f27d2a", display: "block" }}>
+                             + Add Participant
+                          </strong>
+                          <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#657895" }}>
+                                   Add a new participant to a group
+                          </p>
+                    </button>
+                    <button
+                   type="button"
+  className="quick-action"
+  onClick={() => navigate("/groups")}
+  style={{
+    flex: 1,
+    padding: "12px",
+    border: "1px solid #e3e8ee",
+    borderRadius: "8px",
+    cursor: "pointer",
+    textAlign: "left",
+  }}
+>
+  <strong style={{ color: "#10213f", display: "block" }}>
+    👥 Manage Groups
+  </strong>
+  <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#657895" }}>
+    View and manage all groups
+  </p>
+</button>
 
-                <button className="quick-action" style={{ flex: 1, padding: "12px", border: "1px solid #e3e8ee", borderRadius: "8px", background: "#fff", cursor: "pointer", textAlign: "left" }}>
-                  <strong style={{ color: "#10213f", display: "block" }}>👥 Manage Groups</strong>
-                  <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#657895" }}>View and manage all groups</p>
-                </button>
+               
               </div>
             </section>
-          </div>
+            </div>
+
+           
+{/* QUICK ADD PARTICIPANT MODAL */}
+{showQuickAddParticipant && (
+  <div
+    className="participant-modal-overlay"
+    onClick={() => {
+      if (!savingQuickParticipant) {
+        setShowQuickAddParticipant(false);
+      }
+    }}
+  >
+    <div
+      className="participant-modal quick-add-participant-modal"
+      onClick={(e) => e.stopPropagation()}
+    >
+      
+{/* HEADER */}
+<div className="quick-add-header">
+  <div className="quick-add-header-icon">
+  <UserRoundPlus size={30} strokeWidth={2.5} />
+</div>
+
+  <div className="quick-add-header-text">
+    <h2>Add Participant</h2>
+    <p>Add a new participant to a group</p>
+  </div>
+
+  <button
+    type="button"
+    className="modal-close-btn"
+    disabled={savingQuickParticipant}
+    onClick={() => setShowQuickAddParticipant(false)}
+  >
+    ×
+  </button>
+</div>
+
+{/* FORM */}
+<form onSubmit={handleQuickAddParticipant}>
+
+  {/* GROUP */}
+  <div className="modal-form-field">
+    <label>Group <span>*</span></label>
+
+    <div className="quick-input-wrapper">
+      <Users size={17} className="quick-input-icon" />
+
+      <select
+        value={quickParticipant.group_id}
+        onChange={(e) =>
+          setQuickParticipant({
+            ...quickParticipant,
+            group_id: e.target.value,
+          })
+        }
+        required
+      >
+        <option value="">Select a group</option>
+
+        {groups.map((group) => (
+          <option key={group.id} value={group.id}>
+            {group.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  </div>
+
+  {/* FULL NAME */}
+  <div className="modal-form-field">
+    <label>Full Name <span>*</span></label>
+
+    <div className="quick-input-wrapper">
+      <UserRound size={17} className="quick-input-icon" />
+
+      <input
+        type="text"
+        value={quickParticipant.name}
+        onChange={(e) =>
+          setQuickParticipant({
+            ...quickParticipant,
+            name: e.target.value,
+          })
+        }
+        placeholder="Enter participant name"
+        required
+      />
+    </div>
+  </div>
+
+  {/* EMAIL AND PHONE */}
+  <div className="quick-add-fields-row">
+
+    <div className="modal-form-field">
+      <label>Email</label>
+
+      <div className="quick-input-wrapper">
+        <Mail size={17} className="quick-input-icon" />
+
+        <input
+          type="email"
+          value={quickParticipant.email}
+          onChange={(e) =>
+            setQuickParticipant({
+              ...quickParticipant,
+              email: e.target.value,
+            })
+          }
+          placeholder="Enter email (optional)"
+        />
+      </div>
+    </div>
+
+    <div className="modal-form-field">
+      <label>Phone</label>
+
+      <div className="quick-input-wrapper">
+        <Phone size={17} className="quick-input-icon" />
+
+        <input
+          type="tel"
+          value={quickParticipant.phone}
+          onChange={(e) =>
+            setQuickParticipant({
+              ...quickParticipant,
+              phone: e.target.value,
+            })
+          }
+          placeholder="Enter phone (optional)"
+        />
+      </div>
+    </div>
+
+  </div>
+
+
+        {/* ERROR */}
+        {quickParticipantError && (
+          <p className="modal-error">
+            {quickParticipantError}
+          </p>
+        )}
+
+        {/* BUTTONS */}
+        <div className="participant-modal-actions">
+          <button
+            type="button"
+            className="modal-cancel-btn"
+            disabled={savingQuickParticipant}
+            onClick={() => setShowQuickAddParticipant(false)}
+          >
+            Cancel
+          </button>
+
+          <button
+            type="submit"
+            className="modal-submit-btn"
+            disabled={savingQuickParticipant}
+          >
+            {savingQuickParticipant ? (
+  "Adding..."
+) : (
+  <>
+    <span className="add-participant-plus">+</span>
+    Add Participant
+  </>
+)}
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+)}
+
+        
           
           {/* ADD GROUP MODAL */}
           {showAddGroup && (
@@ -912,9 +1294,9 @@ const handleUpdateGroup = async (e) => {
                 <div className="add-group-header">
                   <div className="add-group-heading">
                     <div className="add-group-icon">
-                      <Users size={27} />
-                    </div>
-
+  <UsersRound size={30} />
+  <Plus size={15} className="group-icon-plus" />
+</div>
                     <div>
                       <h2>Add New Group</h2>
                       <p>Create a new group and set its capacity.</p>
@@ -1005,12 +1387,13 @@ const handleUpdateGroup = async (e) => {
                     </button>
 
                     <button
-                      type="submit"
-                      className="submit-group-btn"
-                      disabled={addingGroup}
-                    >
-                      {addingGroup ? "Adding..." : "Add Group"}
-                    </button>
+  type="submit"
+  className="submit-group-btn"
+  disabled={addingGroup}
+>
+  <Plus size={18} />
+  {addingGroup ? "Adding..." : "Add Group"}
+</button>
                   </div>
                 </form>
               </div>

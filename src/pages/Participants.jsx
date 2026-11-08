@@ -503,6 +503,53 @@ const participantsByGroup = groups.map((group) => ({
             ))}
           </select>
         </div>
+                <div className="modal-form-field">
+          <label>Full Name *</label>
+          <input
+            type="text"
+            value={quickParticipant.name}
+            onChange={(e) =>
+              setQuickParticipant({
+                ...quickParticipant,
+                name: e.target.value,
+              })
+            }
+            placeholder="Enter participant name"
+            required
+          />
+        </div>
+
+        <div className="modal-form-field">
+          <label>Email</label>
+          <input
+            type="email"
+            value={quickParticipant.email}
+            onChange={(e) =>
+              setQuickParticipant({
+                ...quickParticipant,
+                email: e.target.value,
+              })
+            }
+            placeholder="Enter email (optional)"
+          />
+        </div>
+
+        <div className="modal-form-field">
+          <label>Phone</label>
+          <input
+            type="tel"
+            value={quickParticipant.phone}
+            onChange={(e) =>
+              setQuickParticipant({
+                ...quickParticipant,
+                phone: e.target.value,
+              })
+            }
+            placeholder="Enter phone (optional)"
+          />
+        </div>
+
+
 
         {formError && (
           <p className="modal-error">{formError}</p>

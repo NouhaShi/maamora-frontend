@@ -13,8 +13,7 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/groups" element={<Groups />} />
         <Route path="/participants" element={<Participants />} />
-        <Route path="/notifications" element={<Notifications />} />
-        
+        <Route path="/notifications" element={<Notifications />} />        
       </Route>
     </Routes>
   );
