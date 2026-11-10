@@ -1,33 +1,15 @@
-import { useEffect, useState,useRef  } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Bell, CalendarDays, UsersRound } from "lucide-react";
 import "../App.css";
 
-
-import {
-  Users,
-  UserRound,
-  Bell,
-  Settings,
-  Home,
-  CalendarDays,
-  Eye,
-  Pencil,
-  Trash2,
-  Mail,
-  Phone,
-   UserRoundPlus,
-} from "lucide-react";
-import { UsersRound, Plus } from "lucide-react";
 const API = "http://127.0.0.1:8000/api";
 
-
+// Format notification dates in a readable relative format.
 const formatTimeAgo = (date) => {
   if (!date) return "Just now";
 
-  const seconds = Math.floor(
-    (new Date() - new Date(date)) / 1000
-  );
-
+  const seconds = Math.floor((new Date() - new Date(date)) / 1000);
   if (seconds < 60) return "Just now";
 
   const minutes = Math.floor(seconds / 60);
@@ -44,83 +26,61 @@ const formatTimeAgo = (date) => {
   return `${days} ${days === 1 ? "day" : "days"} ago`;
 };
 
-
 function Dashboard() {
+  // ==============================
+  // 1. STATE
+  // ==============================
   const [dashboard, setDashboard] = useState({});
   const [groups, setGroups] = useState([]);
   const [notifications, setNotifications] = useState([]);
-  const [progressHistory, setProgressHistory] = useState([]);
-  const [selectedGroupId, setSelectedGroupId] = useState("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const actionMenuRef = useRef(null);
-  const navigate = useNavigate();
-  const [groupsPage, setGroupsPage] = useState(1);
-  const groupsPerPage = 5;
-  // QUICK ADD PARTICIPANT MODAL
-const [showQuickAddParticipant, setShowQuickAddParticipant] = useState(false);
-
-const [quickParticipant, setQuickParticipant] = useState({
-  name: "",
-  email: "",
-  phone: "",
-  group_id: "",
-});
-
-const [savingQuickParticipant, setSavingQuickParticipant] = useState(false);
-const [quickParticipantError, setQuickParticipantError] = useState("");
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
-  const [activePage, setActivePage] = useState("Dashboard");
-  const [openActionMenu, setOpenActionMenu] = useState(null);
-  // ADD GROUP MODAL
-const [showAddGroup, setShowAddGroup] = useState(false);
-const [groupName, setGroupName] = useState("");
-const [groupCapacity, setGroupCapacity] = useState("");
-const [addingGroup, setAddingGroup] = useState(false);
-const [addGroupError, setAddGroupError] = useState("");
-// VIEW GROUP MODAL
-const [showViewGroup, setShowViewGroup] = useState(false);
-const [selectedGroup, setSelectedGroup] = useState(null);
-const [loadingGroup, setLoadingGroup] = useState(false);
-const [viewGroupError, setViewGroupError] = useState("");
-// EDIT GROUP MODAL
-const [showEditGroup, setShowEditGroup] = useState(false);
-const [editingGroup, setEditingGroup] = useState(null);
-const [editGroupName, setEditGroupName] = useState("");
-const [editGroupCapacity, setEditGroupCapacity] = useState("");
-const [savingEditGroup, setSavingEditGroup] = useState(false);
-const [editGroupError, setEditGroupError] = useState("");
-// DELETE GROUP MODAL
-const [showDeleteModal, setShowDeleteModal] = useState(false);
-const [showDeleteError, setShowDeleteError] = useState(false);
-const [selectedDeleteGroup, setSelectedDeleteGroup] = useState(null);
-const [deletingGroup, setDeletingGroup] = useState(false);
+  const [groupsPage, setGroupsPage] = useState(1);
 
+  const groupsPerPage = 5;
+  const navigate = useNavigate();
+
+  // ==============================
+  // 2. LOAD DASHBOARD DATA
+  // ==============================
   useEffect(() => {
-    Promise.all([
-      fetch(`${API}/dashboard`).then((res) => {
-        if (!res.ok) throw new Error("Failed to load dashboard");
-        return res.json();
-      }),
+    const loadDashboard = async () => {
+      try {
+        const [
+          dashboardResponse,
+          groupsResponse,
+          notificationsResponse,
+        ] = await Promise.all([
+          fetch(`${API}/dashboard`),
+          fetch(`${API}/groups`),
+          fetch(`${API}/notifications?t=${Date.now()}`),
+        ]);
 
-      fetch(`${API}/groups`).then((res) => {
-        if (!res.ok) throw new Error("Failed to load groups");
-        return res.json();
-      }),
+        if (!dashboardResponse.ok) {
+          throw new Error("Failed to load dashboard.");
+        }
 
-      fetch(`${API}/notifications?t=${Date.now()}`).then((res) => {
-        if (!res.ok) throw new Error("Failed to load notifications");
-        return res.json();
-      }),
-      // Progress History
-    fetch(`${API}/dashboard/progress-history`).then((res) => {
-     if (!res.ok) throw new Error("Failed to load progress history");
-     return res.json();
-     }),
-    ])
-      .then(([dashboardData, groupsData, notificationsData, progressHistoryData]) => {
+        if (!groupsResponse.ok) {
+          throw new Error("Failed to load groups.");
+        }
+
+        if (!notificationsResponse.ok) {
+          throw new Error("Failed to load notifications.");
+        }
+
+        const [
+          dashboardData,
+          groupsData,
+          notificationsData,
+        ] = await Promise.all([
+          dashboardResponse.json(),
+          groupsResponse.json(),
+          notificationsResponse.json(),
+        ]);
+
         setDashboard(dashboardData || {});
 
         setGroups(
@@ -129,379 +89,90 @@ const [deletingGroup, setDeletingGroup] = useState(false);
             : groupsData.groups || []
         );
 
-        const notificationsList = Array.isArray(notificationsData)
-         ? notificationsData
-         : notificationsData.notifications || [];
+        const notificationList = Array.isArray(notificationsData)
+          ? notificationsData
+          : notificationsData.notifications || [];
 
-         setNotifications(
-          notificationsList.sort(
-          (a, b) =>
-           new Date(b.created_at) - new Date(a.created_at)
-           )
-           );
-           setProgressHistory(
-           Array.isArray(progressHistoryData)
-           ? progressHistoryData
-           : []
-           );
-
-        setLoading(false);
-      })
-      .catch((err) => {
+        setNotifications(
+          notificationList.sort(
+            (a, b) =>
+              new Date(b.created_at) - new Date(a.created_at)
+          )
+        );
+      } catch (err) {
         setError(err.message);
+      } finally {
         setLoading(false);
-      });
+      }
+    };
+
+    loadDashboard();
   }, []);
+
+  // ==============================
+  // 3. REFRESH NOTIFICATIONS
+  // ==============================
   useEffect(() => {
- const interval = setInterval(() => {
-  console.log("🔄 Refreshing notifications...");
+    const refreshNotifications = async () => {
+      try {
+        const response = await fetch(`${API}/notifications`);
 
-  fetch(`${API}/notifications`)
-    .then((res) => {
-      console.log("📡 Notifications response:", res.status);
+        if (!response.ok) {
+          throw new Error("Failed to refresh notifications.");
+        }
 
-      if (!res.ok) {
-        throw new Error("Failed to refresh notifications");
+        const data = await response.json();
+
+        const notificationList = Array.isArray(data)
+          ? data
+          : data.notifications || [];
+
+        setNotifications(
+          notificationList.sort(
+            (a, b) =>
+              new Date(b.created_at) - new Date(a.created_at)
+          )
+        );
+      } catch (err) {
+        console.error("Notification refresh error:", err);
       }
+    };
 
-      return res.json();
-    })
-      .then((data) => {
-      console.log("🔔 Notifications data:", data);
+    const interval = setInterval(refreshNotifications, 5000);
 
-      const notificationsList = Array.isArray(data)
-        ? data
-        : data.notifications || [];
+    return () => clearInterval(interval);
+  }, []);
 
-      setNotifications(
-        notificationsList.sort(
-          (a, b) =>
-            new Date(b.created_at) - new Date(a.created_at)
-        )
-      );
-    })
-    .catch((err) => {
-      console.error("❌ Notification refresh error:", err);
-    });
-                 }, 5000);
+  // Reset pagination when search or status filter changes.
+  useEffect(() => {
+    setGroupsPage(1);
+  }, [search, statusFilter]);
 
-                return () => clearInterval(interval);
-                }, []);
-
-                
-useEffect(() => {
-  const handleClickOutside = (event) => {
-    if (!event.target.closest(".action-menu-container")) {
-      setOpenActionMenu(null);
-    }
-  };
-
-  document.addEventListener("mousedown", handleClickOutside);
-
-  return () => {
-    document.removeEventListener("mousedown", handleClickOutside);
-  };
-}, []);
-useEffect(() => {
-  setGroupsPage(1);
-}, [search, statusFilter]);
-                
-const handleAddGroup = async (e) => {
-  e.preventDefault();
-
-  setAddGroupError("");
-
-  const name = groupName.trim();
-  const capacity = Number(groupCapacity);
-
-  if (!name) {
-    setAddGroupError("Please enter a group name.");
-    return;
-  }
-
-  if (!Number.isInteger(capacity) || capacity <= 0) {
-    setAddGroupError("Capacity must be a positive whole number.");
-    return;
-  }
-
-  try {
-    setAddingGroup(true);
-
-    const response = await fetch(`${API}/groups`, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        name: name,
-        capacity: capacity,
-      }),
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      throw new Error(
-        result.message || "Unable to create group."
-      );
-    }
-
-    // Refresh groups and dashboard statistics
-    const [groupsResponse, dashboardResponse] =
-      await Promise.all([
-        fetch(`${API}/groups`),
-        fetch(`${API}/dashboard`),
-      ]);
-
-    if (!groupsResponse.ok || !dashboardResponse.ok) {
-      throw new Error("Group created, but dashboard refresh failed. Please refresh the page.");
-    }
-
-    const groupsData = await groupsResponse.json();
-    const dashboardData = await dashboardResponse.json();
-
-    setGroups(
-      Array.isArray(groupsData)
-        ? groupsData
-        : groupsData.groups || []
-    );
-
-    setDashboard(dashboardData || {});
-
-    // Reset form
-    setGroupName("");
-    setGroupCapacity("");
-    setShowAddGroup(false);
-
-  } catch (error) {
-    setAddGroupError(error.message);
-  } finally {
-    setAddingGroup(false);
-  }
-};
-
-     const handleViewGroup = async (groupId) => {
-  try {
-    setLoadingGroup(true);
-    setViewGroupError("");
-    setSelectedGroup(null);
-    setShowViewGroup(true);
-
-    const response = await fetch(`${API}/groups/${groupId}`);
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || "Failed to load group details.");
-    }
-
-    setSelectedGroup(data);
-
-  } catch (error) {
-    setViewGroupError(error.message);
-  } finally {
-    setLoadingGroup(false);
-  }
-};                
-     // HANDLE EDIT GROUP
-const handleEditGroup = (group) => {
-  setEditingGroup(group);
-
-  setEditGroupName(
-    group.name || group.product_name || ""
-  );
-
-  setEditGroupCapacity(
-    group.capacity ?? group.target_participants ?? ""
-  );
-
-  setEditGroupError("");
-  setShowEditGroup(true);
-};
-// OPEN DELETE GROUP MODAL
-const handleOpenDeleteModal = (group) => {
-  setSelectedDeleteGroup(group);
-
-  const participants = Number(
-    group.current_count ??
-    group.current_participants ??
-    group.participants_count ??
-    0
-  );
-
-  if (participants > 0) {
-    setShowDeleteError(true);
-    setShowDeleteModal(false);
-  } else {
-    setShowDeleteError(false);
-    setShowDeleteModal(true);
-  }
-};
-
-// HANDLE DELETE GROUP
-const handleDeleteGroup = async (groupId) => {
-  try {
-    setDeletingGroup(true);
-
-    const response = await fetch(`${API}/groups/${groupId}`, {
-      method: "DELETE",
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      if (response.status === 422) {
-        setShowDeleteModal(false);
-        setShowDeleteError(true);
-        return;
-      }
-
-      throw new Error(result.message || "Failed to delete group.");
-    }
-
-    // Refresh groups and dashboard
-    const [groupsResponse, dashboardResponse] =
-      await Promise.all([
-        fetch(`${API}/groups`),
-        fetch(`${API}/dashboard`),
-      ]);
-
-    if (!groupsResponse.ok || !dashboardResponse.ok) {
-      throw new Error("Group deleted, but dashboard refresh failed.");
-    }
-
-    const groupsData = await groupsResponse.json();
-    const dashboardData = await dashboardResponse.json();
-
-    setGroups(
-      Array.isArray(groupsData)
-        ? groupsData
-        : groupsData.groups || []
-    );
-
-    setDashboard(dashboardData || {});
-
-    // Close modal
-    setShowDeleteModal(false);
-    setSelectedDeleteGroup(null);
-
-  } catch (error) {
-    console.error("Delete group error:", error);
-  } finally {
-    setDeletingGroup(false);
-  }
-};
-
-
-   // HANDLE UPDATE GROUP
-const handleUpdateGroup = async (e) => {
-  e.preventDefault();
-
-  setEditGroupError("");
-
-  const name = editGroupName.trim();
-  const capacity = Number(editGroupCapacity);
-
-  if (!name) {
-    setEditGroupError("Please enter a group name.");
-    return;
-  }
-
-  if (!Number.isInteger(capacity) || capacity <= 0) {
-    setEditGroupError("Capacity must be a positive whole number.");
-    return;
-  }
-
-  try {
-    setSavingEditGroup(true);
-
-    const response = await fetch(
-      `${API}/groups/${editingGroup.id}`,
-      {
-        method: "PUT",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name,
-          capacity,
-        }),
-      }
-    );
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      throw new Error(
-        result.message || "Unable to update group."
-      );
-    }
-
-    // Refresh groups and dashboard
-    const [groupsResponse, dashboardResponse] =
-      await Promise.all([
-        fetch(`${API}/groups`),
-        fetch(`${API}/dashboard`),
-      ]);
-
-    if (!groupsResponse.ok || !dashboardResponse.ok) {
-      throw new Error(
-        "Group updated, but refreshing the dashboard failed."
-      );
-    }
-
-    const groupsData = await groupsResponse.json();
-    const dashboardData = await dashboardResponse.json();
-
-    setGroups(
-      Array.isArray(groupsData)
-        ? groupsData
-        : groupsData.groups || []
-    );
-
-    setDashboard(dashboardData || {});
-
-    setShowEditGroup(false);
-    setEditingGroup(null);
-
-  } catch (error) {
-    setEditGroupError(error.message);
-  } finally {
-    setSavingEditGroup(false);
-  }
-};
-                if (loading) {
-                return <div className="loading">Loading dashboard...</div>;
-                }
-
-                if (error) {
-                return <div className="error">Error: {error}</div>;
-                }
-
-  // =========================
-  // GROUP FILTERING
-  // =========================
-
+  // ==============================
+  // 4. FILTER AND PAGINATE GROUPS
+  // ==============================
   const filteredGroups = groups.filter((group) => {
-    const capacity = Number(group.capacity || group.target_participants || 0);
-    const count = Number(group.current_count || group.current_participants || 0);
+    const capacity = Number(
+      group.capacity || group.target_participants || 0
+    );
+
+    const count = Number(
+      group.current_count || group.current_participants || 0
+    );
 
     const percentage =
       capacity > 0 ? Math.round((count / capacity) * 100) : 0;
 
     let status = "In Progress";
+
     if (percentage >= 100) {
       status = "Completed";
     } else if (percentage >= 80) {
       status = "Near Full";
     }
 
-    const groupName = group.name || group.product_name || "Unnamed Group";
+    const groupName =
+      group.name || group.product_name || "Unnamed Group";
 
     const matchesSearch = groupName
       .toLowerCase()
@@ -512,19 +183,19 @@ const handleUpdateGroup = async (e) => {
 
     return matchesSearch && matchesStatus;
   });
+
   const totalGroupsPages = Math.ceil(
-  filteredGroups.length / groupsPerPage
-);
+    filteredGroups.length / groupsPerPage
+  );
 
-const currentGroups = filteredGroups.slice(
-  (groupsPage - 1) * groupsPerPage,
-  groupsPage * groupsPerPage
-);
+  const currentGroups = filteredGroups.slice(
+    (groupsPage - 1) * groupsPerPage,
+    groupsPage * groupsPerPage
+  );
 
-  // =========================
-  // CAPACITY DATA
-  // =========================
-
+  // ==============================
+  // 5. CAPACITY STATISTICS
+  // ==============================
   const totalCapacity = Number(dashboard.total_capacity || 0);
   const totalParticipants = Number(dashboard.total_participants || 0);
 
@@ -535,113 +206,64 @@ const currentGroups = filteredGroups.slice(
       ? Math.round((totalParticipants / totalCapacity) * 100)
       : 0;
 
-  const inProgressGroups = groups.filter((group) => {
-    const capacity = Number(group.capacity || group.target_participants || 0);
-    const count = Number(group.current_count || group.current_participants || 0);
-    const percentage = capacity > 0 ? (count / capacity) * 100 : 0;
-    return percentage < 80;
-  }).length;
+  const getGroupPercentage = (group) => {
+    const capacity = Number(
+      group.capacity || group.target_participants || 0
+    );
+
+    const count = Number(
+      group.current_count || group.current_participants || 0
+    );
+
+    return capacity > 0 ? (count / capacity) * 100 : 0;
+  };
+
+  const inProgressGroups = groups.filter(
+    (group) => getGroupPercentage(group) < 80
+  ).length;
 
   const nearFullGroups = groups.filter((group) => {
-    const capacity = Number(group.capacity || group.target_participants || 0);
-    const count = Number(group.current_count || group.current_participants || 0);
-    const percentage = capacity > 0 ? (count / capacity) * 100 : 0;
+    const percentage = getGroupPercentage(group);
     return percentage >= 80 && percentage < 100;
   }).length;
 
-  const fullGroups = groups.filter((group) => {
-    const capacity = Number(group.capacity || group.target_participants || 0);
-    const count = Number(group.current_count || group.current_participants || 0);
-    const percentage = capacity > 0 ? (count / capacity) * 100 : 0;
-    return percentage >= 100;
-  }).length;
-
-  const handleQuickAddParticipant = async (e) => {
-  e.preventDefault();
-
-  setSavingQuickParticipant(true);
-  setQuickParticipantError("");
-
-  try {
-    const response = await fetch(
-      `${API}/groups/${quickParticipant.group_id}/participants`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          name: quickParticipant.name,
-          email: quickParticipant.email,
-          phone: quickParticipant.phone,
-        }),
-      }
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || "Unable to add participant.");
-    }
-
-    // Refresh Dashboard data
-    const [groupsResponse, dashboardResponse] = await Promise.all([
-      fetch(`${API}/groups`),
-      fetch(`${API}/dashboard`),
-    ]);
-
-    if (!groupsResponse.ok || !dashboardResponse.ok) {
-      throw new Error("Participant added, but data refresh failed.");
-    }
-
-    const [groupsData, dashboardData] = await Promise.all([
-      groupsResponse.json(),
-      dashboardResponse.json(),
-    ]);
-
-    setGroups(groupsData);
-    setDashboard(dashboardData);
-
-    setQuickParticipant({
-      name: "",
-      email: "",
-      phone: "",
-      group_id: "",
-    });
-
-    setShowQuickAddParticipant(false);
-
-  } catch (error) {
-    setQuickParticipantError(
-      error.message === "Ce groupe a atteint sa capacité maximale."
-        ? "This group has reached its maximum capacity."
-        : error.message || "Something went wrong."
-    );
-  } finally {
-    setSavingQuickParticipant(false);
+  const fullGroups = groups.filter(
+    (group) => getGroupPercentage(group) >= 100
+  ).length;
+    // ==============================
+  // 6. RENDER DASHBOARD
+  // ==============================
+  if (loading) {
+    return <div className="loading">Loading dashboard...</div>;
   }
-};
 
-     return (
-        <main className="content">
-          {/* PAGE TITLE */}
-          <div className="page-title">
-            <div>
-              <h1>Dashboard</h1>
-              <h2 className="welcome">Welcom Back, Admin 👋</h2>
-              <p className="description">Here is today's group overview.</p>
-            </div>
-               <div className="date">
-               <CalendarDays className="date-icon" />
-               {new Date().toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-               })}
-              </div>
-          </div>
-          {/* STATISTICS CARDS */}
+  if (error) {
+    return <div className="error">Error: {error}</div>;
+  }
+
+  return (
+    <main className="content">
+      {/* PAGE TITLE */}
+      <div className="page-title">
+        <div>
+          <h1>Dashboard</h1>
+          <h2 className="welcome">Welcome Back, Admin 👋</h2>
+          <p className="description">
+            Here is today's group overview.
+          </p>
+        </div>
+
+        <div className="date">
+          <CalendarDays className="date-icon" />
+          {new Date().toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          })}
+        </div>
+      </div>
+
+               {/* STATISTICS CARDS */}
           <div className="stats-grid">
             <div className="stat-card orange">
               <div className="stat-icon">👥</div>
@@ -673,9 +295,7 @@ const currentGroups = filteredGroups.slice(
             <div className="stat-card yellow">
               <div className="stat-icon">⚠️</div>
               <div>
-                <strong>
-                  {nearFullGroups}
-                </strong>
+                <strong>{nearFullGroups}</strong>
                 <h3>Near Full</h3>
                 <p>Groups at 80% or more</p>
               </div>
@@ -693,24 +313,14 @@ const currentGroups = filteredGroups.slice(
 
           {/* GROUPS + NOTIFICATIONS GRID */}
           <div className="dashboard-grid">
+
             {/* GROUP OVERVIEW */}
             <section className="panel groups-panel">
               <div className="panel-header">
                 <h2>Group Overview</h2>
-                
-<button
-  type="button"
-  className="add-button"
-  onClick={() => {
-    setOpenActionMenu(null);
-    setShowAddGroup(true);
-  }}
->
-  + Add Group
-</button>
-
               </div>
-              
+
+              {/* SEARCH AND STATUS FILTER */}
               <div className="group-tools">
                 <div className="group-search">
                   ⌕
@@ -733,6 +343,7 @@ const currentGroups = filteredGroups.slice(
                 </select>
               </div>
 
+              {/* GROUPS TABLE */}
               <div className="table-wrapper">
                 <table>
                   <thead>
@@ -742,1042 +353,406 @@ const currentGroups = filteredGroups.slice(
                       <th>Capacity</th>
                       <th>Progress</th>
                       <th>Status</th>
-                      <th>Actions</th>
                     </tr>
                   </thead>
+
                   <tbody>
-                    {currentGroups.map((group, index) => {
-                      const capacity = Number(
-                        group.capacity || group.target_participants || 0
-                      );
-                      const count = Number(
-                        group.current_count || group.current_participants || 0
-                      );
+                    {currentGroups.length > 0 ? (
+                      currentGroups.map((group, index) => {
+                        const capacity = Number(
+                          group.capacity ||
+                          group.target_participants ||
+                          0
+                        );
 
-                      const percentage =
-                        capacity > 0 ? Math.round((count / capacity) * 100) : 0;
+                        const count = Number(
+                          group.current_count ||
+                          group.current_participants ||
+                          0
+                        );
 
-                      let status = "In Progress";
-                      if (percentage >= 100) {
-                        status = "Completed";
-                      } else if (percentage >= 80) {
-                        status = "Near Full";
-                      }
+                        const percentage =
+                          capacity > 0
+                            ? Math.round((count / capacity) * 100)
+                            : 0;
 
-                      return (
-                        <tr key={group.id || index}>
-                          <td>
-                            <strong>
-                              {group.name || group.product_name || "Group"}
-                            </strong>
-                          </td>
-                          <td>{count}</td>
-                          <td>{capacity}</td>
-                          <td>
-                            <div className="progress-cell">
-                              <span>{percentage}%</span>
-                              <div className="progress-bar">
-                                <div
-                                 className={
-                                  percentage >= 100
-                                  ? "progress full-progress"
-                                  : percentage >= 80
-                                  ? "progress warning-progress"
-                                  : percentage >=50
-                                  ? "progress normal-progress"
-                                  : "progress low-progress"
-                                  }
-                                  style={{
-                                    width: `${Math.min(percentage, 100)}%`,
-                                  }}
-                                />
+                        return (
+                          <tr key={group.id || index}>
+                            <td>
+                              <strong>
+                                {group.name ||
+                                  group.product_name ||
+                                  "Group"}
+                              </strong>
+                            </td>
+
+                            <td>{count}</td>
+                            <td>{capacity}</td>
+
+                            <td>
+                              <div className="progress-cell">
+                                <span>{percentage}%</span>
+
+                                <div className="progress-bar">
+                                  <div
+                                    className={
+                                      percentage >= 100
+                                        ? "progress full-progress"
+                                        : percentage >= 80
+                                        ? "progress warning-progress"
+                                        : percentage >= 50
+                                        ? "progress normal-progress"
+                                        : "progress low-progress"
+                                    }
+                                    style={{
+                                      width: `${Math.min(
+                                        percentage,
+                                        100
+                                      )}%`,
+                                    }}
+                                  />
+                                </div>
                               </div>
-                            </div>
-                          </td>
-                          <td>
-                       <span
-                          className={`status ${
-                          percentage >= 100
-                          ? "completed"
-                          : percentage >= 80
-                          ? "almost-complete"
-                          : percentage >= 50
-                          ? "in-progress"
-                          : "low"
-                          }`}
-                          >
-                           {
-                            percentage >= 100
-                            ? "Completed"
-                            : percentage >= 80
-                            ? "Almost Complete"
-                            : percentage >= 50
-                            ? "In Progress"
-                            : "Low"
-                            }
-                          </span>
-                          </td>
-                          
-<td className="actions">
-  <div className="action-menu-container" ref={actionMenuRef}>
-    <button
-      type="button"
-      className="action-menu-trigger"
-      onClick={() =>
-        setOpenActionMenu(
-          openActionMenu === (group.id || index)
-            ? null
-            : (group.id || index)
-        )
-      }
-    >
-      ⋮
-    </button>
+                            </td>
 
-    {openActionMenu === (group.id || index) && (
-      <div className="action-dropdown">
-
-       
-<button
-  type="button"
-  onClick={() => {
-    console.log("VIEW CLICKED");
-    console.log("GROUP ID:", group.id);
-    setOpenActionMenu(null);
-    handleViewGroup(group.id);
-  }}
->
-  <Eye size={15} />
-  View
-</button>
-
-
-<button
-  type="button"
-  onClick={() => {
-  setOpenActionMenu(null);
-  handleEditGroup(group);
-}}
->
-  <Pencil size={15} />
-  Edit
-</button>
-
-<button
-  type="button"
-  className="delete-action"
-  onClick={() => {
-    setOpenActionMenu(null);
-    handleOpenDeleteModal(group);
-  }}
->
-  <Trash2 size={15} />
-  Delete
-</button>
-
-      </div>
-    )}
-  </div>
-</td>
-
-                        </tr>
-                      );
-                    })}
+                            <td>
+                              <span
+                                className={`status ${
+                                  percentage >= 100
+                                    ? "completed"
+                                    : percentage >= 80
+                                    ? "almost-complete"
+                                    : percentage >= 50
+                                    ? "in-progress"
+                                    : "low"
+                                }`}
+                              >
+                                {percentage >= 100
+                                  ? "Completed"
+                                  : percentage >= 80
+                                  ? "Almost Complete"
+                                  : percentage >= 50
+                                  ? "In Progress"
+                                  : "Low"}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan="5" className="empty-state">
+                          No groups found.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
+
               {/* GROUPS PAGINATION */}
-<div className="groups-pagination">
-  <span>
-    Showing {filteredGroups.length === 0 ? 0 : (groupsPage - 1) * groupsPerPage + 1}
-    {" "}to{" "}
-    {Math.min(groupsPage * groupsPerPage, filteredGroups.length)}
-    {" "}of {filteredGroups.length} groups
-  </span>
+              <div className="groups-pagination">
+                <span>
+                  Showing{" "}
+                  {filteredGroups.length === 0
+                    ? 0
+                    : (groupsPage - 1) * groupsPerPage + 1}
+                  {" "}to{" "}
+                  {Math.min(
+                    groupsPage * groupsPerPage,
+                    filteredGroups.length
+                  )}
+                  {" "}of {filteredGroups.length} groups
+                </span>
 
-  <div className="pagination-controls">
-    <button
-      type="button"
-      disabled={groupsPage === 1}
-      onClick={() => setGroupsPage((page) => page - 1)}
-    >
-      ‹
-    </button>
+                <div className="pagination-controls">
+                  <button
+                    type="button"
+                    disabled={groupsPage === 1}
+                    onClick={() =>
+                      setGroupsPage((page) => page - 1)
+                    }
+                  >
+                    ‹
+                  </button>
 
-    {Array.from(
-      { length: totalGroupsPages },
-      (_, index) => index + 1
-    ).map((page) => (
-      <button
-        type="button"
-        key={page}
-        className={groupsPage === page ? "active" : ""}
-        onClick={() => setGroupsPage(page)}
-      >
-        {page}
-      </button>
-    ))}
+                  {Array.from(
+                    { length: totalGroupsPages },
+                    (_, index) => index + 1
+                  ).map((page) => (
+                    <button
+                      type="button"
+                      key={page}
+                      className={
+                        groupsPage === page ? "active" : ""
+                      }
+                      onClick={() => setGroupsPage(page)}
+                    >
+                      {page}
+                    </button>
+                  ))}
 
-    <button
-      type="button"
-      disabled={groupsPage === totalGroupsPages || totalGroupsPages === 0}
-      onClick={() => setGroupsPage((page) => page + 1)}
-    >
-      ›
-    </button>
-  </div>
-</div>
+                  <button
+                    type="button"
+                    disabled={
+                      groupsPage === totalGroupsPages ||
+                      totalGroupsPages === 0
+                    }
+                    onClick={() =>
+                      setGroupsPage((page) => page + 1)
+                    }
+                  >
+                    ›
+                  </button>
+                </div>
+              </div>
             </section>
-
             {/* RECENT NOTIFICATIONS */}
             <section className="panel notifications-panel">
               <div className="panel-header">
                 <h2>Recent Notifications</h2>
-               <button
-                    type="button"
-                    className="view-all-btn"
-                    onClick={() => navigate("/notifications")}
-                    >
-                    View all →
-                   </button>
+
+                <button
+                  type="button"
+                  className="view-all-btn"
+                  onClick={() => navigate("/notifications")}
+                >
+                  View all →
+                </button>
               </div>
 
-             <div className="notification-list">
+              <div className="notification-list">
                 {notifications.length > 0 ? (
-                 notifications.slice(0, 5).map((notification, index) => {
-                  let data = {};
+                  notifications.slice(0, 5).map((notification, index) => {
+                    let data = {};
 
-      try {
-        data =
-          typeof notification.data === "string"
-            ? JSON.parse(notification.data)
-            : notification.data || {};
-      } catch (error) {
-        data = {};
-      }
+                    try {
+                      data =
+                        typeof notification.data === "string"
+                          ? JSON.parse(notification.data)
+                          : notification.data || {};
+                    } catch (error) {
+                      data = {};
+                    }
 
-      const message =
-        data.message ||
-        notification.message ||
-        "A notification was received.";
+                    const message =
+                      data.message ||
+                      notification.message ||
+                      "A notification was received.";
 
-      const isFull =
-        data.alert_type === "FULL_ALERT" ||
-        Number(data.percentage) >= 100;
+                    const isFull =
+                      data.alert_type === "FULL_ALERT" ||
+                      Number(data.percentage) >= 100;
 
-      const isParticipant =
-        data.type === "participant" ||
-        notification.type === "participant";
+                    const isParticipant =
+                      data.type === "participant" ||
+                      notification.type === "participant";
 
-      let title = "Group Near Full";
-      let icon = "⚠️";
-      let typeClass = "warning";
+                    let title = "Group Near Full";
+                    let icon = "⚠️";
+                    let typeClass = "warning";
 
-      if (isParticipant) {
-        title = "New Participant";
-        icon = "♙";
-        typeClass = "participant";
-      } else if (isFull) {
-        title = "Group Completed";
-        icon = "✓";
-        typeClass = "completed";
-      }
+                    if (isParticipant) {
+                      title = "New Participant";
+                      icon = "♙";
+                      typeClass = "participant";
+                    } else if (isFull) {
+                      title = "Group Completed";
+                      icon = "✓";
+                      typeClass = "completed";
+                    }
 
-      return (
-        <div className="notification-item" key={notification.id || index}>
-          
-          <div className={`notification-timeline ${typeClass}`}>
-            <span className="timeline-dot"></span>
+                    return (
+                      <div
+                        className="notification-item"
+                        key={notification.id || index}
+                      >
+                        <div className={`notification-timeline ${typeClass}`}>
+                          <span className="timeline-dot"></span>
 
-            <div className="notification-icon">
-              {icon}
-            </div>
+                          <div className="notification-icon">
+                            {icon}
+                          </div>
+                        </div>
+
+                        <div className="notification-content">
+                          <strong>{title}</strong>
+                          <p>{message}</p>
+                          <small>
+                            {formatTimeAgo(notification.created_at)}
+                          </small>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="empty-notifications">
+                    No notifications yet.
+                  </div>
+                )}
+              </div>
+            </section>
           </div>
 
-          <div className="notification-content">
-            <strong>{title}</strong>
-
-            <p>{message}</p>
-
-            <small>{formatTimeAgo(notification.created_at)}</small>
-          </div>
-
-            </div>
-            );
-            })
-           ) : (
-          <div className="empty-notifications">
-            No notifications yet.
-          </div>
-          )}
-          </div>
-          </section>
-          </div>
           {/* BOTTOM SECTION */}
-          <div className="bottom-dashboard-grid" style={{ marginTop: "20px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "18px" }}>
+          <div
+            className="bottom-dashboard-grid"
+            style={{
+              marginTop: "20px",
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "18px",
+            }}
+          >
             {/* CAPACITY OVERVIEW */}
             <section className="panel capacity-panel">
               <div className="panel-header">
                 <h2>Capacity Overview</h2>
               </div>
-              <div className="capacity-content" style={{ display: "flex", alignItems: "center", gap: "20px" }}>
-                <div className="capacity-circle" style={{ position: "relative", width: "90px", height: "90px", borderRadius: "50%", background: `conic-gradient(#f27d2a ${overallPercentage}%, #e7ebef 0)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <div style={{ width: "70px", height: "70px", borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+
+              <div
+                className="capacity-content"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "20px",
+                }}
+              >
+                <div
+                  className="capacity-circle"
+                  style={{
+                    position: "relative",
+                    width: "90px",
+                    height: "90px",
+                    borderRadius: "50%",
+                    background: `conic-gradient(#f27d2a ${overallPercentage}%, #e7ebef 0)`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "70px",
+                      height: "70px",
+                      borderRadius: "50%",
+                      background: "#fff",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
                     <strong>{overallPercentage}%</strong>
                   </div>
                 </div>
 
                 <div className="capacity-info">
-                  <strong style={{ fontSize: "18px", display: "block" }}>
+                  <strong
+                    style={{
+                      fontSize: "18px",
+                      display: "block",
+                    }}
+                  >
                     {totalParticipants} / {totalCapacity}
                   </strong>
-                  <span style={{ color: "#657895", fontSize: "12px" }}>Total Participants</span>
-                  <p style={{ margin: "4px 0 0", color: "#9aa7b8", fontSize: "11px" }}>
+
+                  <span
+                    style={{
+                      color: "#657895",
+                      fontSize: "12px",
+                    }}
+                  >
+                    Total Participants
+                  </span>
+
+                  <p
+                    style={{
+                      margin: "4px 0 0",
+                      color: "#9aa7b8",
+                      fontSize: "11px",
+                    }}
+                  >
                     {overallPercentage}% of total capacity
                   </p>
                 </div>
 
-                <div className="capacity-status" style={{ marginLeft: "auto", fontSize: "12px" }}>
-                  <div>🟢 In Progress: <strong>{inProgressGroups}</strong></div>
-                  <div>🟠 Near Full (≥ 80%): <strong>{nearFullGroups}</strong></div>
-                  <div>🔴 Full (100%): <strong>{fullGroups}</strong></div>
+                <div className="capacity-status">
+                  <div className="capacity-status-item">
+                    <span>🟡 In Progress:</span>
+                    <strong>
+                      {inProgressGroups}{" "}
+                      <span>
+                        {inProgressGroups === 1 ? "group" : "groups"}
+                      </span>
+                    </strong>
+                  </div>
+
+                  <div className="capacity-status-item">
+                    <span>🟠 Near Full (≥ 80%):</span>
+                    <strong>
+                      {nearFullGroups}{" "}
+                      <span>
+                        {nearFullGroups === 1 ? "group" : "groups"}
+                      </span>
+                    </strong>
+                  </div>
+
+                  <div className="capacity-status-item">
+                    <span>🟢 Full (100%):</span>
+                    <strong>
+                      {fullGroups}{" "}
+                      <span>
+                        {fullGroups === 1 ? "group" : "groups"}
+                      </span>
+                    </strong>
+                  </div>
                 </div>
               </div>
             </section>
-
 
             {/* QUICK ACTIONS */}
             <section className="panel quick-actions-panel">
               <div className="panel-header">
                 <h2>Quick Actions</h2>
               </div>
-              <div className="quick-actions" style={{ display: "flex", gap: "12px" }}>
-                 <button
-                      type="button"
-                      className="quick-action active-action"
-                      onClick={() => {
-                           setQuickParticipantError("");
-                           setShowQuickAddParticipant(true);
-                           }}
-                      style={{
-                          flex: 1,
-                          padding: "12px",
-                          border: "1px solid #f27d2a",
-                          borderRadius: "8px",
-                          cursor: "pointer",
-                          textAlign: "left",
-                           }}
-                          >
-                          <strong style={{ color: "#f27d2a", display: "block" }}>
-                             + Add Participant
-                          </strong>
-                          <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#657895" }}>
-                                   Add a new participant to a group
-                          </p>
-                    </button>
-                    <button
-                   type="button"
-  className="quick-action"
-  onClick={() => navigate("/groups")}
-  style={{
-    flex: 1,
-    padding: "12px",
-    border: "1px solid #e3e8ee",
-    borderRadius: "8px",
-    cursor: "pointer",
-    textAlign: "left",
-  }}
->
-  <strong style={{ color: "#10213f", display: "block" }}>
-    👥 Manage Groups
-  </strong>
-  <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#657895" }}>
-    View and manage all groups
-  </p>
-</button>
 
-               
+              <div className="quick-actions">
+                {/* Navigate to Groups page */}
+                <button
+                  type="button"
+                  className="quick-action-card groups-action"
+                  onClick={() => navigate("/groups")}
+                >
+                  <div className="quick-action-icon">
+                    <UsersRound size={34} />
+                  </div>
+
+                  <div className="quick-action-text">
+                    <strong>View Groups</strong>
+                    <p>Check groups' status and progress</p>
+                  </div>
+                </button>
+
+                {/* Navigate to Notifications page */}
+                <button
+                  type="button"
+                  className="quick-action-card notifications-action"
+                  onClick={() => navigate("/notifications")}
+                >
+                  <div className="quick-action-icon">
+                    <Bell size={34} />
+                  </div>
+
+                  <div className="quick-action-text">
+                    <strong>View Notifications</strong>
+                    <p>Check alerts and updates</p>
+                  </div>
+                </button>
               </div>
             </section>
-            </div>
-
-           
-{/* QUICK ADD PARTICIPANT MODAL */}
-{showQuickAddParticipant && (
-  <div
-    className="participant-modal-overlay"
-    onClick={() => {
-      if (!savingQuickParticipant) {
-        setShowQuickAddParticipant(false);
-      }
-    }}
-  >
-    <div
-      className="participant-modal quick-add-participant-modal"
-      onClick={(e) => e.stopPropagation()}
-    >
-      
-{/* HEADER */}
-<div className="quick-add-header">
-  <div className="quick-add-header-icon">
-  <UserRoundPlus size={30} strokeWidth={2.5} />
-</div>
-
-  <div className="quick-add-header-text">
-    <h2>Add Participant</h2>
-    <p>Add a new participant to a group</p>
-  </div>
-
-  <button
-    type="button"
-    className="modal-close-btn"
-    disabled={savingQuickParticipant}
-    onClick={() => setShowQuickAddParticipant(false)}
-  >
-    ×
-  </button>
-</div>
-
-{/* FORM */}
-<form onSubmit={handleQuickAddParticipant}>
-
-  {/* GROUP */}
-  <div className="modal-form-field">
-    <label>Group <span>*</span></label>
-
-    <div className="quick-input-wrapper">
-      <Users size={17} className="quick-input-icon" />
-
-      <select
-        value={quickParticipant.group_id}
-        onChange={(e) =>
-          setQuickParticipant({
-            ...quickParticipant,
-            group_id: e.target.value,
-          })
-        }
-        required
-      >
-        <option value="">Select a group</option>
-
-        {groups.map((group) => (
-          <option key={group.id} value={group.id}>
-            {group.name}
-          </option>
-        ))}
-      </select>
-    </div>
-  </div>
-
-  {/* FULL NAME */}
-  <div className="modal-form-field">
-    <label>Full Name <span>*</span></label>
-
-    <div className="quick-input-wrapper">
-      <UserRound size={17} className="quick-input-icon" />
-
-      <input
-        type="text"
-        value={quickParticipant.name}
-        onChange={(e) =>
-          setQuickParticipant({
-            ...quickParticipant,
-            name: e.target.value,
-          })
-        }
-        placeholder="Enter participant name"
-        required
-      />
-    </div>
-  </div>
-
-  {/* EMAIL AND PHONE */}
-  <div className="quick-add-fields-row">
-
-    <div className="modal-form-field">
-      <label>Email</label>
-
-      <div className="quick-input-wrapper">
-        <Mail size={17} className="quick-input-icon" />
-
-        <input
-          type="email"
-          value={quickParticipant.email}
-          onChange={(e) =>
-            setQuickParticipant({
-              ...quickParticipant,
-              email: e.target.value,
-            })
-          }
-          placeholder="Enter email (optional)"
-        />
-      </div>
-    </div>
-
-    <div className="modal-form-field">
-      <label>Phone</label>
-
-      <div className="quick-input-wrapper">
-        <Phone size={17} className="quick-input-icon" />
-
-        <input
-          type="tel"
-          value={quickParticipant.phone}
-          onChange={(e) =>
-            setQuickParticipant({
-              ...quickParticipant,
-              phone: e.target.value,
-            })
-          }
-          placeholder="Enter phone (optional)"
-        />
-      </div>
-    </div>
-
-  </div>
-
-
-        {/* ERROR */}
-        {quickParticipantError && (
-          <p className="modal-error">
-            {quickParticipantError}
-          </p>
-        )}
-
-        {/* BUTTONS */}
-        <div className="participant-modal-actions">
-          <button
-            type="button"
-            className="modal-cancel-btn"
-            disabled={savingQuickParticipant}
-            onClick={() => setShowQuickAddParticipant(false)}
-          >
-            Cancel
-          </button>
-
-          <button
-            type="submit"
-            className="modal-submit-btn"
-            disabled={savingQuickParticipant}
-          >
-            {savingQuickParticipant ? (
-  "Adding..."
-) : (
-  <>
-    <span className="add-participant-plus">+</span>
-    Add Participant
-  </>
-)}
-          </button>
-        </div>
-
-      </form>
-    </div>
-  </div>
-)}
-
-        
-          
-          {/* ADD GROUP MODAL */}
-          {showAddGroup && (
-            <div
-              className="add-group-overlay"
-              onClick={() => {
-                if (!addingGroup) setShowAddGroup(false);
-              }}
-            >
-              <div
-                className="add-group-modal"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {/* MODAL HEADER */}
-                <div className="add-group-header">
-                  <div className="add-group-heading">
-                    <div className="add-group-icon">
-  <UsersRound size={30} />
-  <Plus size={15} className="group-icon-plus" />
-</div>
-                    <div>
-                      <h2>Add New Group</h2>
-                      <p>Create a new group and set its capacity.</p>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="add-group-close"
-                    onClick={() => setShowAddGroup(false)}
-                    disabled={addingGroup}
-                  >
-                    ×
-                  </button>
-                </div>
-
-                {/* MODAL FORM */}
-                <form onSubmit={handleAddGroup}>
-                  <div className="add-group-form">
-
-                    <div className="form-field">
-                      <label>
-                        Group Name <span>*</span>
-                      </label>
-
-                      <input
-                        type="text"
-                        placeholder="Enter group name"
-                        value={groupName}
-                        onChange={(e) => setGroupName(e.target.value)}
-                        required
-                      />
-                    </div>
-
-                    <div className="form-field">
-                      <label>
-                        Maximum Capacity <span>*</span>
-                      </label>
-
-                      <input
-                        type="number"
-                        placeholder="Enter group capacity"
-                        min="1"
-                        step="1"
-                        value={groupCapacity}
-                        onChange={(e) => setGroupCapacity(e.target.value)}
-                        required
-                      />
-                    </div>
-
-                    {/* INITIAL PARTICIPANTS */}
-                    <div className="group-default-row">
-                      <div className="default-label">
-                        <Users size={21} />
-                        <span>Initial Participants</span>
-                      </div>
-
-                      <div className="default-value">0</div>
-                    </div>
-
-                    {/* DEFAULT STATUS */}
-                    <div className="form-field">
-                      <label>Status</label>
-
-                      <div className="default-status">
-                        <span className="status-dot"></span>
-                        Low
-                      </div>
-                    </div>
-
-                    {addGroupError && (
-                      <p className="add-group-error" role="alert">
-                        {addGroupError}
-                      </p>
-                    )}
-
-                  </div>
-
-                  {/* MODAL FOOTER */}
-                  <div className="add-group-footer">
-                    <button
-                      type="button"
-                      className="cancel-group-btn"
-                      onClick={() => setShowAddGroup(false)}
-                      disabled={addingGroup}
-                    >
-                      Cancel
-                    </button>
-
-                    <button
-  type="submit"
-  className="submit-group-btn"
-  disabled={addingGroup}
->
-  <Plus size={18} />
-  {addingGroup ? "Adding..." : "Add Group"}
-</button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-        {/* VIEW GROUP MODAL */}
-{showViewGroup && (
-  <div className="add-group-overlay">
-    <div className="modal-content view-group-modal">
-
-      <div className="modal-header">
-        <div>
-          <h2>Group Details</h2>
-          <p>View group information and current progress.</p>
-        </div>
-
-        <button
-          type="button"
-          className="close-modal"
-          onClick={() => setShowViewGroup(false)}
-        >
-          ×
-        </button>
-      </div>
-
-      <div className="view-group-body">
-
-        {loadingGroup ? (
-          <p>Loading group details...</p>
-        ) : viewGroupError ? (
-          <p className="form-error">{viewGroupError}</p>
-        ) : selectedGroup ? (
-          <>
-            <div className="view-group-field">
-              <label>Group Name</label>
-              <p>{selectedGroup.name}</p>
-            </div>
-
-            <div className="view-group-field">
-              <label>Group ID</label>
-              <p>{selectedGroup.id}</p>
-            </div>
-
-            <div className="view-group-field">
-              <label>Participants</label>
-              <p>{selectedGroup.current_count}</p>
-            </div>
-
-            <div className="view-group-field">
-              <label>Maximum Capacity</label>
-              <p>{selectedGroup.capacity}</p>
-            </div>
-
-            <div className="view-group-field">
-              <label>Progress</label>
-              <p>{selectedGroup.percentage}%</p>
-            </div>
-
-            <div className="view-group-field">
-              <label>Status</label>
-              <p>{selectedGroup.status}</p>
-            </div>
-          </>
-        ) : null}
-
-      </div>
-
-      <div className="modal-footer">
-        <button
-          type="button"
-          onClick={() => setShowViewGroup(false)}
-        >
-          Close
-        </button>
-      </div>
-
-    </div>
-  </div>
-)}
-
-{/* EDIT GROUP MODAL */}
-{showEditGroup && editingGroup && (
-  <div
-    className="edit-group-overlay"
-    onClick={() => {
-      if (!savingEditGroup) setShowEditGroup(false);
-    }}
-  >
-    <div
-      className="edit-group-modal"
-      onClick={(e) => e.stopPropagation()}
-    >
-
-      {/* HEADER */}
-      <div className="edit-group-header">
-        <div className="edit-group-heading">
-          <div className="edit-group-icon">
-            <Users size={27} />
           </div>
-
-          <div>
-            <h2>Edit Group</h2>
-            <p>Update group information and capacity.</p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          className="edit-group-close"
-          disabled={savingEditGroup}
-          onClick={() => setShowEditGroup(false)}
-        >
-          ×
-        </button>
-      </div>
-
-      {/* FORM */}
-      <form onSubmit={handleUpdateGroup}>
-
-        <div className="edit-group-body">
-
-          {editGroupError && (
-  <div className="edit-error-notification" role="alert">
-    <span className="edit-error-icon">!</span>
-
-    <div>
-      <strong>Unable to update group</strong>
-      <p>{editGroupError}</p>
-    </div>
-  </div>
-)}
-
-          {/* GROUP NAME */}
-          <div className="edit-form-field">
-            <label>
-              Group Name <span>*</span>
-            </label>
-
-            <input
-              type="text"
-              value={editGroupName}
-              onChange={(e) =>
-                setEditGroupName(e.target.value)
-              }
-              placeholder="Enter group name"
-              required
-            />
-          </div>
-
-          {/* CAPACITY */}
-          <div className="edit-form-field">
-            <label>
-              Maximum Capacity <span>*</span>
-            </label>
-
-            <input
-              type="number"
-              min="1"
-              value={editGroupCapacity}
-              onChange={(e) =>
-                setEditGroupCapacity(e.target.value)
-              }
-              required
-            />
-          </div>
-
-          {/* CURRENT PARTICIPANTS */}
-          <div className="edit-form-field">
-            <label>Current Participants</label>
-
-            <input
-              type="number"
-              value={
-                editingGroup.current_count ??
-                editingGroup.participants_count ??
-                0
-              }
-              disabled
-            />
-
-            <small>
-              Managed through participant records.
-            </small>
-          </div>
-
-          {/* CURRENT STATUS */}
-          <div className="edit-status-row">
-            <label>Current Status</label>
-
-            <span
-              className={`edit-status-badge ${
-                (() => {
-                  const count = Number(
-                    editingGroup.current_count ??
-                    editingGroup.participants_count ?? 0
-                  );
-
-                  const capacity = Number(editGroupCapacity);
-                  const percentage =
-                    capacity > 0
-                      ? (count / capacity) * 100
-                      : 0;
-
-                  return percentage >= 100
-                    ? "full"
-                    : percentage >= 80
-                    ? "near-full"
-                    : "low";
-                })()
-              }`}
-            >
-              {(() => {
-                const count = Number(
-                  editingGroup.current_count ??
-                  editingGroup.participants_count ?? 0
-                );
-
-                const capacity = Number(editGroupCapacity);
-                const percentage =
-                  capacity > 0
-                    ? (count / capacity) * 100
-                    : 0;
-
-                return percentage >= 100
-                  ? "Completed"
-                  : percentage >= 80
-                  ? "Almost Complete"
-                  : "Low";
-              })()}
-            </span>
-          </div>
-
-        </div>
-
-        {/* FOOTER */}
-        <div className="edit-group-footer">
-
-          <button
-            type="button"
-            className="edit-cancel-btn"
-            disabled={savingEditGroup}
-            onClick={() => setShowEditGroup(false)}
-          >
-            Cancel
-          </button>
-
-          <button
-            type="submit"
-            className="edit-save-btn"
-            disabled={savingEditGroup}
-          >
-            {savingEditGroup
-              ? "Saving..."
-              : "Save Changes"}
-          </button>
-
-        </div>
-
-      </form>
-    </div>
-  </div>
-)}
-
-{/* DELETE GROUP CONFIRMATION MODAL */}
-{showDeleteModal && selectedDeleteGroup && (
-  <div
-    className="delete-modal-overlay"
-    onClick={() => {
-      if (!deletingGroup) setShowDeleteModal(false);
-    }}
-  >
-    <div
-      className="delete-modal-content"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <button
-        className="delete-modal-close"
-        type="button"
-        onClick={() => setShowDeleteModal(false)}
-        disabled={deletingGroup}
-      >
-        ×
-      </button>
-
-      <div className="delete-modal-icon">
-        <Trash2 size={30} />
-      </div>
-
-      <h2>Delete this group?</h2>
-
-      <p className="delete-modal-message">
-        This group has no participants. Are you sure
-        you want to delete it?
-      </p>
-
-      <div className="delete-group-info">
-        <div className="delete-group-icon">
-          <Users size={23} />
-        </div>
-
-        <div className="delete-group-details">
-          <strong>{selectedDeleteGroup.name}</strong>
-
-          <div className="delete-group-meta">
-            <span>
-              <UserRound size={15} />
-              {selectedDeleteGroup.current_count ?? 0} Participants
-            </span>
-
-            <span>
-              {selectedDeleteGroup.capacity} Capacity
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="delete-modal-actions">
-        <button
-          type="button"
-          className="delete-cancel-btn"
-          disabled={deletingGroup}
-          onClick={() => setShowDeleteModal(false)}
-        >
-          Cancel
-        </button>
-
-        <button
-          type="button"
-          className="delete-confirm-btn"
-          disabled={deletingGroup}
-          onClick={() => handleDeleteGroup(selectedDeleteGroup.id)}
-        >
-          <Trash2 size={16} />
-          {deletingGroup ? "Deleting..." : "Delete Group"}
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-
-{/* CANNOT DELETE GROUP MODAL */}
-{showDeleteError && (
-  <div className="delete-modal-overlay">
-    <div className="delete-modal-content delete-error-modal">
-
-      <button
-        type="button"
-        className="delete-modal-close"
-        onClick={() => {
-          setShowDeleteError(false);
-          setSelectedDeleteGroup(null);
-        }}
-      >
-        ×
-      </button>
-
-      <div className="delete-warning-icon">
-        !
-      </div>
-
-      <h2>Cannot Delete Group</h2>
-
-      <p className="delete-modal-message">
-        This group contains registered participants and
-        cannot be deleted.
-      </p>
-
-      <button
-        type="button"
-        className="delete-return-btn"
-        onClick={() => {
-          setShowDeleteError(false);
-          setSelectedDeleteGroup(null);
-        }}
-      >
-        ← &nbsp; Return to Groups
-      </button>
-
-    </div>
-  </div>
-)}
-
-         </main>
-  );
+        </main>
+      );
 }
 
 export default Dashboard;
