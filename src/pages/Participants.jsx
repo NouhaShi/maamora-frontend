@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { UsersRound } from "lucide-react";
 import "../App.css";
 
 const API = "http://127.0.0.1:8000/api";
@@ -9,6 +10,7 @@ function Participants() {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selectedGroupId, setSelectedGroupId] = useState("");
 
   // Load participants and groups from the backend
   useEffect(() => {
@@ -43,25 +45,37 @@ function Participants() {
     fetchData();
   }, []);
 
-  // Calculate the number of groups in each status
-  const nearFullGroups = groups.filter(
-    (group) => group.status === "Presque complet"
-  ).length;
+// Calculate group statistics using backend progression rules
+const getFillPercentage = (group) => {
+  const capacity = Number(group.capacity) || 0;
+  const currentCount = Number(group.current_count) || 0;
 
-  const completedGroups = groups.filter(
-    (group) => group.status === "Terminé"
-  ).length;
+  if (capacity <= 0) return 0;
 
-  // Organize participants under their corresponding group
-  const participantsByGroup = groups
-    .map((group) => ({
-      ...group,
-      participants: participants.filter(
-        (participant) =>
-          String(participant.group_id) === String(group.id)
-      ),
-    }))
-    .filter((group) => group.participants.length > 0);
+  return (currentCount / capacity) * 100;
+};
+
+const nearFullGroups = groups.filter((group) => {
+  const percentage = getFillPercentage(group);
+  return percentage >= 80 && percentage < 100;
+}).length;
+
+const completedGroups = groups.filter(
+  (group) => getFillPercentage(group) >= 100
+).length;
+
+// Get the selected group
+const selectedGroup = groups.find(
+  (group) => String(group.id) === selectedGroupId
+);
+
+// Get participants of the selected group
+const groupParticipants = selectedGroup
+  ? participants.filter(
+      (participant) =>
+        String(participant.group_id) === String(selectedGroup.id)
+    )
+  : [];
 
   return (
     <div className="content participants-page">
@@ -95,54 +109,91 @@ function Participants() {
               </div>
             </div>
 
-            <div className="participant-stat-card">
-              <div className="stat-icon peach">⚠</div>
-              <div>
-                <h2>{nearFullGroups}</h2>
-                <p>Near Full Groups</p>
-              </div>
-            </div>
+            <div className="stat-card yellow">
+            <div className="stat-icon">⚠️</div>
+             <div>
+               <strong>{nearFullGroups}</strong>
+               <h3>Near Full</h3>
+               <p>Groups at 80% or more</p>
+             </div>
+             </div>
 
-            <div className="participant-stat-card">
-              <div className="stat-icon green">✓</div>
-              <div>
-                <h2>{completedGroups}</h2>
-                <p>Completed Groups</p>
-              </div>
+            <div className="stat-card red">
+             <div className="stat-icon">✓</div>
+             <div>
+              <strong>{completedGroups}</strong>
+              <h3>Full Group</h3>
+              <p>Groups at 100% capacity</p>
+             </div>
+             </div>
+             
             </div>
-          </div>
+          
+           
+{/* Participants by Group */}
+<section className="panel participants-panel">
+  <div className="panel-header">
+    <h2>Participants by Group</h2>
+  </div>
 
-          {/* Participants grouped by group */}
-          <section className="panel participants-panel">
-            <div className="panel-header">
-              <h2>Participants by Group</h2>
+  <div className="participants-group-selector">
+    <label htmlFor="select-group">Select a Group</label>
+
+    <select
+      id="select-group"
+      value={selectedGroupId}
+      onChange={(e) => setSelectedGroupId(e.target.value)}
+    >
+      <option value="">Choose a group...</option>
+
+      {groups.map((group) => (
+        <option key={group.id} value={String(group.id)}>
+          {group.name}
+        </option>
+      ))}
+    </select>
+  </div>
+
+  {!selectedGroup ? (
+    <div className="participants-empty-state">
+      <div className="participants-empty-icon">
+        <UsersRound size={40} strokeWidth={2} />
+      </div>
+      <h3>No group selected</h3>
+      <p>Please select a group to view its participants.</p>
+    </div>
+  ) : (
+    <div className="selected-group-content">
+      <div className="selected-group-header">
+        <div>
+          <h3>{selectedGroup.name}</h3>
+          <p>
+            {groupParticipants.length} Participants
+          </p>
+        </div>
+      </div>
+
+      {groupParticipants.length > 0 ? (
+        <div className="group-participants-list">
+          {groupParticipants.map((participant) => (
+            <div
+              className="group-participant-row"
+              key={participant.id}
+            >
+              <span>{participant.name}</span>
+              <span>{participant.email || "—"}</span>
             </div>
+          ))}
+        </div>
+      ) : (
+        <p className="empty-message">
+          No participants in this group.
+        </p>
+      )}
+    </div>
+  )}
+</section>
 
-            <div className="participants-by-group">
-              {participantsByGroup.length > 0 ? (
-                participantsByGroup.map((group) => (
-                  <div className="group-participants-card" key={group.id}>
-                    <h3>{group.name}</h3>
-                    <p>{group.participants.length} Participants</p>
-
-                    <div className="group-participants-list">
-                      {group.participants.map((participant) => (
-                        <div
-                          className="group-participant-row"
-                          key={participant.id}
-                        >
-                          <span>{participant.name}</span>
-                          <span>{participant.email || "—"}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="empty-message">No participants found.</p>
-              )}
-            </div>
-          </section>
         </>
       )}
     </div>

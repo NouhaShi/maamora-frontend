@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
 import { Eye } from "lucide-react";
+import {
+  UsersRound,
+  Layers,
+  CalendarDays,
+  AlertTriangle
+} from "lucide-react";
 import "../App.css";
 
 const API = "http://127.0.0.1:8000/api";
@@ -135,7 +141,7 @@ function Groups() {
         100
       );
 
-      const y = 180 - percentage * 1.5;
+      const y = 220 - percentage * 1.8;
 
       return `${x},${y}`;
     })
@@ -364,101 +370,107 @@ function Groups() {
           {selectedGroup && (
             <section className="group-details-panel">
               <div className="details-header">
-                <div>
-                  <span className="details-label">ⓘ Group Details</span>
+               <div className="details-title">
+                <h3>{selectedGroup.name}</h3>
+                <span className="details-status">
+                 {getStatusLabel(selectedGroup.status)}
+                 </span>
+                 </div>
 
-                  <div className="details-title">
-                    <div className="details-icon">🎮</div>
-                    <div>
-                      <h3>{selectedGroup.name}</h3>
-                      <span className="details-status">
-                        {getStatusLabel(selectedGroup.status)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                 <button
+                   type="button"
+                    className="close-details-btn"
+                     aria-label="Close group details"
+                      onClick={() => setSelectedGroup(null)}
+                       >
+                        ×
+                      </button>
+                      </div>
+                     <div className="details-tabs">
+                      <button className="active">
+                      <span>▥</span> Overview
+                       </button>
 
-                <button
-                  type="button"
-                  className="close-details-btn"
-                  aria-label="Close group details"
-                  onClick={() => setSelectedGroup(null)}
-                >
-                  ×
-                </button>
-              </div>
-
+                            </div>
               {/* Overview information */}
               <div className="details-overview">
-                <div
-                  className="progress-circle"
-                  style={{
-                    background: `conic-gradient(
-                      #f27d2a ${Math.min(
-                        Number(selectedGroup.percentage) || 0,
-                        100
-                      )}%,
-                      #fde6d5 0
-                    )`,
-                  }}
-                >
-                  <strong>
-                    {Number(selectedGroup.percentage) || 0}%
-                  </strong>
-                </div>
+             <div className="progress-circle">
+  <svg viewBox="0 0 120 120">
+    <circle
+      className="progress-track"
+      cx="60"
+      cy="60"
+      r="50"
+    />
 
-                <div className="details-information">
-                  <div className="details-info-row">
-                    <span>♧ Participants</span>
-                    <strong>
-                      {selectedGroup.current_count} / {selectedGroup.capacity}
-                    </strong>
-                  </div>
+    <circle
+      className="progress-value"
+      cx="60"
+      cy="60"
+      r="50"
+      style={{
+        strokeDasharray: `${Math.min(
+          Number(selectedGroup.percentage) || 0,
+          100
+        ) * 3.14} 314`,
+      }}
+    />
+  </svg>
 
-                  <div className="details-info-row">
-                    <span>▤ Capacity</span>
-                    <strong>{selectedGroup.capacity}</strong>
-                                    </div>
+  <strong>{Number(selectedGroup.percentage) || 0}%</strong>
+</div>
+                 <div className="details-information">
+  <div className="details-info-row">
+    <span><UsersRound /> Participants</span>
+    <strong>
+      {selectedGroup.current_count} / {selectedGroup.capacity}
+    </strong>
+  </div>
 
-                  <div className="details-info-row">
-                    <span>⚠ Status</span>
-                    <strong>{getStatusLabel(selectedGroup.status)}</strong>
-                  </div>
+  <div className="details-info-row">
+    <span><Layers /> Capacity</span>
+    <strong>{selectedGroup.capacity}</strong>
+  </div>
 
-                  <div className="details-info-row">
-                    <span>▦ Created At</span>
-                    <strong>
-                      {selectedGroup.created_at
-                        ? new Date(
-                            selectedGroup.created_at
-                          ).toLocaleDateString()
-                        : "—"}
-                    </strong>
-                  </div>
-                </div>
+  <div className="details-info-row">
+    <span><CalendarDays /> Created At</span>
+    <strong>
+      {selectedGroup.created_at
+        ? new Date(selectedGroup.created_at).toLocaleDateString()
+        : "—"}
+    </strong>
+  </div>
+
+  <div className="details-info-row">
+    <span><AlertTriangle /> Status</span>
+    <strong>{getStatusLabel(selectedGroup.status)}</strong>
+  </div>
+</div>
               </div>
 
               {/* Progress history chart */}
-              <div className="progress-history-panel">
-                <div className="progress-history-header">
-                  <h3>Progress Over Time</h3>
-                  <select
-                    value={dateRange}
-                    onChange={(event) => setDateRange(event.target.value)}
-                  >
-                    <option value="7">Last 7 Days</option>
-                    <option value="30">Last 30 Days</option>
-                    <option value="90">Last 90 Days</option>
-                  </select>
-                </div>
-              </div>
+               <div className="progress-history-panel">
+  <div className="progress-history-header">
+    <h3>Progress Over Time</h3>
 
+    <select
+      value={dateRange}
+      onChange={(event) => setDateRange(event.target.value)}
+    >
+      <option value="7">Last 7 Days</option>
+      <option value="30">Last 30 Days</option>
+      <option value="90">Last 90 Days</option>
+    </select>
+  </div>
+<div className="progress-chart"></div>
+ 
+</div>
               <div className="progress-chart">
                 {selectedGroupHistory.length > 0 ? (
-                  <svg
-                    viewBox="0 0 600 230"
-                    width="100%"
-                    height="190"
+                 <svg
+                   viewBox="0 0 600 280"
+                   width="200%"
+                   height="240"
                     style={{ display: "block", overflow: "visible" }}
                   >
                     {/* Horizontal grid lines and percentage labels */}
@@ -466,17 +478,17 @@ function Groups() {
                       <g key={value}>
                         <line
                           x1="40"
-                          y1={180 - value * 1.5}
+                          y1={220 - value * 1.8}
                           x2="560"
-                          y2={180 - value * 1.5}
+                          y2={220 - value * 1.8}
                           stroke="#e9e9e9"
                           strokeWidth="1"
                         />
                         <text
                           x="5"
-                          y={185 - value * 1.5}
-                          fill="#7b8495"
-                          fontSize="13"
+                          y={225 - value * 1.8}
+                          fill="#40434a"
+                          fontSize="14"
                         >
                           {value}%
                         </text>
@@ -506,7 +518,7 @@ function Groups() {
                         100
                       );
 
-                      const y = 180 - percentage * 1.5;
+                      const y = 220 - percentage * 1.8;
 
                       return (
                         <circle
@@ -533,10 +545,10 @@ function Groups() {
                         <text
                           key={`date-${index}`}
                           x={x}
-                          y="205"
+                          y="250"
                           textAnchor="middle"
-                          fill="#7b8495"
-                          fontSize="11"
+                          fill="#59606d"
+                          fontSize="13"
                         >
                           {new Date(item.created_at).toLocaleDateString(
                             "en-US",
