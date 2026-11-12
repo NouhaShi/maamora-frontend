@@ -448,8 +448,9 @@ function Groups() {
 </div>
               </div>
 
-              {/* Progress history chart */}
-               <div className="progress-history-panel">
+             
+{/* Progress history chart */}
+<div className="progress-history-panel">
   <div className="progress-history-header">
     <h3>Progress Over Time</h3>
 
@@ -462,106 +463,100 @@ function Groups() {
       <option value="90">Last 90 Days</option>
     </select>
   </div>
-<div className="progress-chart"></div>
- 
+
+  <div className="progress-chart">
+    {selectedGroupHistory.length > 0 ? (
+      <svg
+        viewBox="0 0 600 280"
+        width="100%"
+        height="240"
+        style={{ display: "block", overflow: "visible" }}
+      >
+        {[0, 20, 40, 60, 80, 100].map((value) => (
+          <g key={value}>
+            <line
+              x1="40"
+              y1={220 - value * 1.8}
+              x2="560"
+              y2={220 - value * 1.8}
+              stroke="#e9e9e9"
+              strokeWidth="1"
+            />
+            <text
+              x="5"
+              y={225 - value * 1.8}
+              fill="#40434a"
+              fontSize="14"
+            >
+              {value}%
+            </text>
+          </g>
+        ))}
+
+        <polyline
+          points={chartPoints}
+          fill="none"
+          stroke="#f27d2a"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+
+        {selectedGroupHistory.map((item, index) => {
+          const x =
+            selectedGroupHistory.length > 1
+              ? 40 + (index * 520) / (selectedGroupHistory.length - 1)
+              : 300;
+
+          const percentage = Math.min(
+            Math.max(Number(item.percentage) || 0, 0),
+            100
+          );
+
+          const y = 220 - percentage * 1.8;
+
+          return (
+            <circle
+              key={`point-${index}`}
+              cx={x}
+              cy={y}
+              r="4"
+              fill="#ffffff"
+              stroke="#f27d2a"
+              strokeWidth="2"
+            />
+          );
+        })}
+
+        {selectedGroupHistory.map((item, index) => {
+          const x =
+            selectedGroupHistory.length > 1
+              ? 40 + (index * 520) / (selectedGroupHistory.length - 1)
+              : 300;
+
+          return (
+            <text
+              key={`date-${index}`}
+              x={x}
+              y="250"
+              textAnchor="middle"
+              fill="#59606d"
+              fontSize="13"
+            >
+              {new Date(item.created_at).toLocaleDateString(
+                "en-US",
+                { month: "short", day: "numeric" }
+              )}
+            </text>
+          );
+        })}
+      </svg>
+    ) : (
+      <p>No progress history available yet.</p>
+    )}
+  </div>
 </div>
-              <div className="progress-chart">
-                {selectedGroupHistory.length > 0 ? (
-                 <svg
-                   viewBox="0 0 600 280"
-                   width="200%"
-                   height="240"
-                    style={{ display: "block", overflow: "visible" }}
-                  >
-                    {/* Horizontal grid lines and percentage labels */}
-                    {[0, 20, 40, 60, 80, 100].map((value) => (
-                      <g key={value}>
-                        <line
-                          x1="40"
-                          y1={220 - value * 1.8}
-                          x2="560"
-                          y2={220 - value * 1.8}
-                          stroke="#e9e9e9"
-                          strokeWidth="1"
-                        />
-                        <text
-                          x="5"
-                          y={225 - value * 1.8}
-                          fill="#40434a"
-                          fontSize="14"
-                        >
-                          {value}%
-                        </text>
-                      </g>
-                    ))}
 
-                    {/* Progress line */}
-                    <polyline
-                      points={chartPoints}
-                      fill="none"
-                      stroke="#f27d2a"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-
-                    {/* Data points */}
-                    {selectedGroupHistory.map((item, index) => {
-                      const x =
-                        selectedGroupHistory.length > 1
-                          ? 40 +
-                            (index * 520) / (selectedGroupHistory.length - 1)
-                          : 300;
-
-                      const percentage = Math.min(
-                        Math.max(Number(item.percentage) || 0, 0),
-                        100
-                      );
-
-                      const y = 220 - percentage * 1.8;
-
-                      return (
-                        <circle
-                          key={`point-${index}`}
-                          cx={x}
-                          cy={y}
-                          r="4"
-                          fill="#ffffff"
-                          stroke="#f27d2a"
-                          strokeWidth="2"
-                        />
-                      );
-                    })}
-
-                    {/* Dates below the chart */}
-                    {selectedGroupHistory.map((item, index) => {
-                      const x =
-                        selectedGroupHistory.length > 1
-                          ? 40 +
-                            (index * 520) / (selectedGroupHistory.length - 1)
-                          : 300;
-
-                      return (
-                        <text
-                          key={`date-${index}`}
-                          x={x}
-                          y="250"
-                          textAnchor="middle"
-                          fill="#59606d"
-                          fontSize="13"
-                        >
-                          {new Date(item.created_at).toLocaleDateString(
-                            "en-US",
-                            { month: "short", day: "numeric" }
-                          )}
-                        </text>
-                      );
-                    })}
-                  </svg>
-                ) : (
-                  <p>No progress history available yet.</p>
-                )}
-              </div>
             </section>
           )}
         </div>

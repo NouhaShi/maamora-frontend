@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { UsersRound } from "lucide-react";
+import { UsersRound ,Mail, Phone} from "lucide-react";
 import "../App.css";
 
 const API = "http://127.0.0.1:8000/api";
@@ -64,6 +64,7 @@ const completedGroups = groups.filter(
   (group) => getFillPercentage(group) >= 100
 ).length;
 
+
 // Get the selected group
 const selectedGroup = groups.find(
   (group) => String(group.id) === selectedGroupId
@@ -76,7 +77,26 @@ const groupParticipants = selectedGroup
         String(participant.group_id) === String(selectedGroup.id)
     )
   : [];
+     const formatPhoneNumber = (phone) => {
+  if (!phone) return "—";
 
+  // Remove spaces and non-digit characters
+  let number = String(phone).replace(/\D/g, "");
+
+  // Convert Moroccan local format to international format
+  if (number.startsWith("0")) {
+    number = "212" + number.substring(1);
+  } else if (!number.startsWith("212")) {
+    number = "212" + number;
+  }
+
+  // Format as +212 6 00 00 00 15
+  if (number.length === 12) {
+    return `+212 ${number[3]} ${number.slice(4, 6)} ${number.slice(6, 8)} ${number.slice(8, 10)} ${number.slice(10, 12)}`;
+  }
+
+  return `+${number}`;
+};
   return (
     <div className="content participants-page">
       {/* Page heading */}
@@ -94,7 +114,7 @@ const groupParticipants = selectedGroup
           {/* Participants overview cards */}
           <div className="participants-stats">
             <div className="participant-stat-card">
-              <div className="stat-icon orange">👥</div>
+              <div className="stat-icon orange">👤</div>
               <div>
                 <h2>{participants.length}</h2>
                 <p>Total Participants</p>
@@ -163,34 +183,75 @@ const groupParticipants = selectedGroup
       <p>Please select a group to view its participants.</p>
     </div>
   ) : (
-    <div className="selected-group-content">
-      <div className="selected-group-header">
-        <div>
-          <h3>{selectedGroup.name}</h3>
-          <p>
-            {groupParticipants.length} Participants
-          </p>
-        </div>
-      </div>
-
-      {groupParticipants.length > 0 ? (
-        <div className="group-participants-list">
-          {groupParticipants.map((participant) => (
-            <div
-              className="group-participant-row"
-              key={participant.id}
-            >
-              <span>{participant.name}</span>
-              <span>{participant.email || "—"}</span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="empty-message">
-          No participants in this group.
-        </p>
-      )}
+   <div className="selected-group-content">
+  <div className="selected-group-header">
+    <div>
+      <h3>{selectedGroup.name}</h3>
+      <p>{groupParticipants.length} Participants</p>
     </div>
+  </div>
+
+  {groupParticipants.length > 0 ? (
+    <div className="participants-table-wrapper">
+      <table className="participants-table">
+        <thead>
+          <tr>
+            <th>Participant</th>
+            <th>Contact</th>
+            <th>Group</th>
+            <th>Joined At</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {groupParticipants.map((participant) => (
+            <tr key={participant.id}>
+              <td className="participant-name">
+                {participant.name}
+              </td>
+
+              <td>
+                <div className="participant-contact">
+                <div className="contact-line">
+                 <Mail size={14} />
+                 <span>{participant.email || "—"}</span>
+               </div>
+
+              <div className="contact-line">
+                <Phone size={14} />
+                   <span>{formatPhoneNumber(participant.phone)}</span>
+                </div>
+                </div>
+              </td>
+              <td>
+                <span className="participant-group-name">
+                  {selectedGroup.name}
+                </span>
+              </td>
+
+              <td>
+                {participant.created_at
+                  ? new Date(participant.created_at).toLocaleDateString(
+                      "en-US",
+                      {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      }
+                    )
+                  : "—"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  ) : (
+    <p className="empty-message">
+      No participants in this group.
+    </p>
+  )}
+</div> 
   )}
 </section>
 

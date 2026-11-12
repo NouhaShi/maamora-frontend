@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+
 import "../App.css";
 
 const API = "http://127.0.0.1:8000/api";
@@ -9,6 +10,8 @@ function Notifications() {
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [searchGroup, setSearchGroup] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const notificationsPerPage = 5;
 
   useEffect(() => {
     const fetchNotifications = async () => {
@@ -45,7 +48,7 @@ function Notifications() {
           if (alertType === "FULL_ALERT" || percentage >= 100) {
             category = "completed";
           }
-
+           
           return {
             id: item.id,
             groupName: details.group_name || "Unknown Group",
@@ -66,7 +69,9 @@ function Notifications() {
 
     fetchNotifications();
   }, []);
-
+   useEffect(() => {
+  setCurrentPage(1);
+}, [activeTab, searchGroup]);
   const totalNotifications = notifications.length;
 
   const nearFullGroups = notifications.filter(
@@ -78,17 +83,31 @@ function Notifications() {
   ).length;
 
   const filteredNotifications = notifications.filter((item) => {
-    const matchesTab =
-      activeTab === "all" ||
-      (activeTab === "warning" && item.category === "warning") ||
-      (activeTab === "completed" && item.category === "completed");
+  const matchesTab =
+    activeTab === "all" ||
+    (activeTab === "warning" && item.category === "warning") ||
+    (activeTab === "completed" && item.category === "completed");
 
-    const matchesSearch = item.groupName
+       const matchesSearch = item.groupName
       .toLowerCase()
       .includes(searchGroup.toLowerCase());
 
     return matchesTab && matchesSearch;
   });
+
+// Pagination
+const totalPages = Math.ceil(
+  filteredNotifications.length / notificationsPerPage
+);
+
+const startIndex = (currentPage - 1) * notificationsPerPage;
+
+const currentNotifications = filteredNotifications.slice(
+  startIndex,
+  startIndex + notificationsPerPage
+);
+
+    
 
   const getNotificationTitle = (item) => {
     return item.category === "completed"
@@ -132,30 +151,33 @@ function Notifications() {
       ) : (
         <>
           <div className="notifications-stats">
-            <div className="notification-stat-card">
-  <div className="notification-stat-icon orange">🔔</div>
-  <div>
-    <h2>{totalNotifications}</h2>
-    <p>Total Notifications</p>
+  <div className="stat-card orange">
+    <div className="stat-icon">🔔</div>
+    <div>
+      <strong>{totalNotifications}</strong>
+      <h3>Total Notifications</h3>
+      <p>All system notifications</p>
+    </div>
+  </div>
+
+  <div className="stat-card yellow">
+    <div className="stat-icon">⚠️</div>
+    <div>
+      <strong>{nearFullGroups}</strong>
+      <h3>Groups Almost Complete</h3>
+      <p>Groups at 80% or more</p>
+    </div>
+  </div>
+
+  <div className="stat-card red">
+    <div className="stat-icon">✓</div>
+    <div>
+      <strong>{completedGroups}</strong>
+      <h3>Groups Completed</h3>
+      <p>Groups at 100% capacity</p>
+    </div>
   </div>
 </div>
-
-            <div className="notification-stat-card">
-              <div className="notification-stat-icon peach">⚠</div>
-              <div>
-                <h2>{nearFullGroups}</h2>
-                <p>Groups Near Full (≥ 80%)</p>
-              </div>
-            </div>
-
-            <div className="notification-stat-card">
-              <div className="notification-stat-icon green">✓</div>
-              <div>
-                <h2>{completedGroups}</h2>
-                <p>Groups Completed (100%)</p>
-              </div>
-            </div>
-          </div>
 
           <section className="panel notifications-panel">
             <div className="notifications-toolbar">
@@ -171,7 +193,7 @@ function Notifications() {
                   className={activeTab === "warning" ? "active" : ""}
                   onClick={() => setActiveTab("warning")}
                 >
-                  Group Near Full
+                  Group Almost Complete
                 </button>
 
                 <button
@@ -194,21 +216,16 @@ function Notifications() {
             <div className="notifications-list">
               {filteredNotifications.length > 0 ? (
                
-filteredNotifications.map((item) => (
+currentNotifications.map((item) => (
   <div className="notification-item" key={item.id}>
 
     {/* LEFT SIDE */}
     <div className="notification-left">
 
-      <div
-        className={`notification-icon ${
-          item.category === "completed"
-            ? "completed"
-            : "warning"
-        }`}
-      >
-        {item.category === "completed" ? "✓" : "⚠"}
-      </div>
+      <div className={`notification-icon ${item.category}`}>
+  {item.category === "completed" ? "✓" : <span className="warning-symbol">⚠️</span>}
+</div>
+  
 
       <div className="notification-details">
         <h3>{getNotificationTitle(item)}</h3>
@@ -232,6 +249,40 @@ filteredNotifications.map((item) => (
                 </p>
               )}
             </div>
+            {/* Notifications Pagination */}
+<div className="notifications-pagination">
+  <span>
+    Showing {filteredNotifications.length === 0 ? 0 : startIndex + 1} to{" "}
+    {Math.min(startIndex + notificationsPerPage, filteredNotifications.length)}
+    {" "}of {filteredNotifications.length} notifications
+  </span>
+
+  <div className="pagination-buttons">
+    <button
+      disabled={currentPage === 1}
+      onClick={() => setCurrentPage((prev) => prev - 1)}
+    >
+      ‹
+    </button>
+
+    {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+      <button
+        key={page}
+        className={currentPage === page ? "active" : ""}
+        onClick={() => setCurrentPage(page)}
+      >
+        {page}
+      </button>
+    ))}
+
+    <button
+      disabled={currentPage === totalPages || totalPages === 0}
+      onClick={() => setCurrentPage((prev) => prev + 1)}
+    >
+      ›
+    </button>
+  </div>
+</div>
           </section>
         </>
       )}

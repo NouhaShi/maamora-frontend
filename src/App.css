@@ -318,24 +318,24 @@ select {
 
 .stat-card strong {
   display: block;
-  font-size: 22px;
+  font-size: 23px;
   line-height: 1.1;
   color: #10213f;
   
 }
 
 .stat-card h3 {
-  margin: 2px 0 3px;
-  font-size: 13px;
+  margin: 3px 0 3px;
+  font-size: 14px;
   font-weight: normal;
-  color: #30496e;
+  color: #283c5b;
   font-weight: 600;
 }
 
 .stat-card p {
   margin: 0;
-  color: #73849c;
-  font-size: 12px;
+  color: #5e6e84;
+  font-size: 13px;
   line-height: 1.3;
   font-weight:550 px;
   
@@ -638,20 +638,20 @@ td strong {
 
   display: flex;
   gap: 12px;
-  padding-bottom: 10px;
+  padding-bottom: 30px;
 }
 .notification-item:not(:last-child)::after {
   content: "";
 
   position: absolute;
 
-  left: 16px;
+  left: 1px;
   right: 0;
 
-  bottom: -11px;
+  bottom: -10px;
 
   height: 1px;
-  background: #d5d9de;
+  background: #dbe1e8;
 }
 
 .notification-icon {
@@ -1019,8 +1019,55 @@ td strong {
 
   color: #657182;
 }
+/* Remove the extra line only on Notifications page */
+.notifications-page .notification-item {
+  border-top: none !important;
+}
+.notifications-page .notification-item:not(:last-child)::after {
+  display: none;
+}
 
 
+.notifications-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 0 5px;
+  margin-top: 15px;
+  border-top: 1px solid #e3eaf2;
+}
+
+.notifications-pagination span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.notifications-pagination .pagination-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notifications-pagination .pagination-buttons button {
+  min-width: 34px;
+  height: 34px;
+  border: 1px solid #e3eaf2;
+  border-radius: 8px;
+  background: white;
+  color: #14233f;
+  cursor: pointer;
+}
+
+.notifications-pagination .pagination-buttons button.active {
+  background: #f27d2a;
+  color: white;
+  border-color: #f27d2a;
+}
+
+.notifications-pagination .pagination-buttons button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 /* ==============================
    GROUPS STATISTICS
 ============================== */
@@ -1248,6 +1295,7 @@ td strong {
   box-shadow: 0 4px 15px rgba(30, 50, 80, 0.05);
   box-sizing: border-box;
   height: fit-content;
+  
 }
 
 /* OVERVIEW */
@@ -1384,6 +1432,7 @@ td strong {
   font-size: 25px;
   cursor: pointer;
   margin-right: -20px;
+  transform: translateY(-22px);
 }
 
 /* Tabs */
@@ -1408,6 +1457,7 @@ td strong {
   font-size: 14px;
   cursor: pointer;
   margin-left: -22px;
+  transform: translateY(-10px);
 }
 
 .group-details-panel .details-tabs button.active {
@@ -1419,7 +1469,7 @@ td strong {
 /* Progress section */
 
 .group-details-panel .progress-history-panel {
-  margin-bottom:  -220px;
+  margin-bottom:  -30px;
 
 }
 
@@ -1483,19 +1533,22 @@ td strong {
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
+  padding-bottom: 100px;
 }
 
 .group-details-panel .progress-chart {
   width: 100%;
   min-height: 180px;
-  padding-top: 70px;
+  padding-top: 60px;
   box-sizing: border-box;
   position: relative;
   min-height: 180px;
+  margin-top: -60px;
+  
 }
 
 .group-details-panel .progress-chart svg {
-  height: 180px;
+  height: 190px;
   position: absolute;
   top: 45px;
   left: 50%;
@@ -1785,15 +1838,53 @@ td strong {
 .participants-page .selected-group-header h3 {
   margin: 0 0 6px;
   color: #102344;
-  font-size: 19px;
+  font-size: 23px;
 }
 
 .participants-page .selected-group-header p {
   margin: 0;
-  color: #647895;
+  color: #f5761c;
+  font-size: 15px;
+  font-weight: 600;
+}
+/* Participants Table Column Headers */
+.participants-table thead th {
   font-size: 14px;
+  font-weight: 700;
+  color: #263c65;
+}
+/* Participant Names */
+.participants-table .participant-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f1a30;
 }
 
+.participants-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.participants-table th:nth-child(1),
+.participants-table td:nth-child(1) {
+  width: 40%;
+}
+
+.participants-table th:nth-child(2),
+.participants-table td:nth-child(2) {
+  width: 20%;
+}
+
+.participants-table th:nth-child(3),
+.participants-table td:nth-child(3) {
+  width: 20%;
+}
+
+.participants-table th:nth-child(4),
+.participants-table td:nth-child(4) {
+  width: 25%;
+}
 
 @media (max-width: 768px) {
   .participants-page .participants-group-selector {
@@ -1801,8 +1892,44 @@ td strong {
   }
 }
 
+/* Participant Contact */
+.participants-table .participant-contact {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
 
 
+.participant-contact {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.contact-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #3a4148;
+  font-size: 14px;
+}
+
+.contact-line svg {
+  flex-shrink: 0;
+  color: #536780;
+  stroke-width: 2;
+}
+.participant-group-name {
+  display: inline-block;
+  padding: 6px 12px;
+  background: #f1f3f8;
+  color: #14233f;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
 
 /* ================================
    NOTIFICATIONS PAGE
@@ -1814,8 +1941,11 @@ td strong {
 
 .notifications-page .page-title {
   margin-bottom: 24px;
+  display: block;
 }
-
+.notifications-page .page-title p {
+  margin-top: 8px;
+}
 /* ================================
    STATISTICS CARDS
 ================================ */
@@ -2005,6 +2135,11 @@ td strong {
 .notifications-page .notification-icon.warning {
   background: #fff0e3;
   color: #f27d2a;
+  
+}
+.notifications-page .warning-symbol {
+  display: inline-block;
+  transform: translateY(-2px);
 }
 
 .notifications-page .notification-details {
@@ -2029,7 +2164,7 @@ td strong {
 .notifications-page .notification-details p {
   margin: 0;
   color: #52647d;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.4;
   text-align: left;
 }
@@ -2042,7 +2177,7 @@ td strong {
   flex-shrink: 0;
   white-space: nowrap;
   color: #52647d;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .notifications-page .calendar-icon {
@@ -2050,10 +2185,11 @@ td strong {
   display: inline-block;
   width: 14px;
   height: 13px;
-  border: 1.5px solid #8291a5;
-  border-radius: 2px;
+  border: 1.6px solid #8291a5;
+  border-radius: 3px;
   box-sizing: border-box;
   flex-shrink: 0;
+  font-size: 14px;
 }
 
 .notifications-page .calendar-icon::before {
@@ -2087,6 +2223,7 @@ td strong {
     align-items: flex-start;
     flex-wrap: wrap;
     gap: 10px;
+    
   }
 
   .notifications-page .notification-left {
@@ -2128,6 +2265,7 @@ td strong {
     align-items: flex-start !important;
     flex-wrap: wrap !important;
     gap: 10px !important;
+    
   }
 
   .notification-left {
