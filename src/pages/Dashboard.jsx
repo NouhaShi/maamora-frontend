@@ -27,171 +27,193 @@ const formatTimeAgo = (date) => {
 };
 
 function Dashboard() {
-  // ==============================
-  // 1. STATE
-  // ==============================
-  const [dashboard, setDashboard] = useState({});
-  const [groups, setGroups] = useState([]);
-  const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Load cached dashboard data
+  const [cachedDashboard] = useState(() => {
+    try {
+      return JSON.parse(
+        sessionStorage.getItem("dashboard_cache") || "null"
+      );
+    } catch {
+      return null;
+    }
+  });
+
+  // States
+  const [dashboard, setDashboard] = useState(cachedDashboard || {});
+  const [groups, setGroups] = useState(
+    cachedDashboard?.groups?.data || []
+  );
+  const [notifications, setNotifications] = useState(
+    cachedDashboard?.notifications || []
+  );
+
+  const [loading, setLoading] = useState(!cachedDashboard);
   const [error, setError] = useState("");
 
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [groupsPage, setGroupsPage] = useState(1);
 
+  const [groupsPagination, setGroupsPagination] = useState({
+    current_page: 1,
+    last_page: 1,
+    from: 0,
+    to: 0,
+    total: 0,
+  });
+
   const groupsPerPage = 5;
   const navigate = useNavigate();
+  // Search debounce
+useEffect(() => {
+  const timeoutId = setTimeout(() => {
+    setDebouncedSearch(search);
+    setGroupsPage(1);
+  }, 400);
+
+  return () => clearTimeout(timeoutId);
+}, [search]);
 
   // ==============================
   // 2. LOAD DASHBOARD DATA
   // ==============================
+   
   useEffect(() => {
+    const controller = new AbortController();
+
     const loadDashboard = async () => {
       try {
-        const [
-          dashboardResponse,
-          groupsResponse,
-          notificationsResponse,
-        ] = await Promise.all([
-          fetch(`${API}/dashboard`),
-          fetch(`${API}/groups`),
-          fetch(`${API}/notifications?t=${Date.now()}`),
-        ]);
+        setError("");
 
-        if (!dashboardResponse.ok) {
-          throw new Error("Failed to load dashboard.");
+        const params = new URLSearchParams({
+          page: String(groupsPage),
+          per_page: String(groupsPerPage),
+        });
+
+        if (debouncedSearch.trim()) {
+          params.set("search", debouncedSearch.trim());
         }
 
-        if (!groupsResponse.ok) {
-          throw new Error("Failed to load groups.");
+        if (statusFilter !== "All Status") {
+          params.set("status", statusFilter);
         }
 
-        if (!notificationsResponse.ok) {
-          throw new Error("Failed to load notifications.");
-        }
-
-        const [
-          dashboardData,
-          groupsData,
-          notificationsData,
-        ] = await Promise.all([
-          dashboardResponse.json(),
-          groupsResponse.json(),
-          notificationsResponse.json(),
-        ]);
-
-        setDashboard(dashboardData || {});
-
-        setGroups(
-          Array.isArray(groupsData)
-            ? groupsData
-            : groupsData.groups || []
+        const response = await fetch(
+          `${API}/dashboard?${params.toString()}`,
+          { signal: controller.signal }
         );
-
-        const notificationList = Array.isArray(notificationsData)
-          ? notificationsData
-          : notificationsData.notifications || [];
-
-        setNotifications(
-          notificationList.sort(
-            (a, b) =>
-              new Date(b.created_at) - new Date(a.created_at)
-          )
-        );
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadDashboard();
-  }, []);
-
-  // ==============================
-  // 3. REFRESH NOTIFICATIONS
-  // ==============================
-  useEffect(() => {
-    const refreshNotifications = async () => {
-      try {
-        const response = await fetch(`${API}/notifications`);
 
         if (!response.ok) {
-          throw new Error("Failed to refresh notifications.");
+          throw new Error("Failed to load dashboard.");
         }
 
         const data = await response.json();
 
-        const notificationList = Array.isArray(data)
-          ? data
-          : data.notifications || [];
+        setDashboard(data || {});
+        setGroups(data.groups?.data || []);
 
+        setGroupsPagination({
+          current_page: data.groups?.current_page || 1,
+          last_page: data.groups?.last_page || 1,
+          from: data.groups?.from || 0,
+          to: data.groups?.to || 0,
+          total: data.groups?.total || 0,
+        });
+
+        if (Array.isArray(data.notifications)) {
+          setNotifications(data.notifications);
+        }
+
+        // Save only the default dashboard view
+        const isDefaultView =
+          groupsPage === 1 &&
+          !debouncedSearch.trim() &&
+          statusFilter === "All Status";
+
+        if (isDefaultView) {
+          sessionStorage.setItem(
+            "dashboard_cache",
+            JSON.stringify(data)
+          );
+        }
+
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          setError(err.message);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadDashboard();
+
+    return () => {
+      controller.abort();
+    };
+
+  }, [groupsPage, debouncedSearch, statusFilter]);
+
+
+  // ==============================
+  // 3. REFRESH NOTIFICATIONS
+  // ==============================
+   useEffect(() => {
+  let isMounted = true;
+  let timeoutId;
+
+  const refreshNotifications = async () => {
+    try {
+      const response = await fetch(`${API}/dashboard/notifications`);
+
+      if (!response.ok) {
+        throw new Error("Failed to refresh notifications.");
+      }
+
+      const data = await response.json();
+
+      const notificationList = Array.isArray(data)
+        ? data
+        : data.notifications || [];
+
+      if (isMounted) {
         setNotifications(
-          notificationList.sort(
+          [...notificationList].sort(
             (a, b) =>
               new Date(b.created_at) - new Date(a.created_at)
           )
         );
-      } catch (err) {
-        console.error("Notification refresh error:", err);
       }
-    };
+    } catch (err) {
+      console.error("Notification refresh error:", err);
+    } finally {
+      if (isMounted) {
+        timeoutId = setTimeout(refreshNotifications, 30000);
+      }
+    }
+  };
 
-    const interval = setInterval(refreshNotifications, 5000);
+  refreshNotifications();
 
-    return () => clearInterval(interval);
-  }, []);
+  return () => {
+    isMounted = false;
+    clearTimeout(timeoutId);
+  };
+}, []);
+
 
   // Reset pagination when search or status filter changes.
   useEffect(() => {
     setGroupsPage(1);
   }, [search, statusFilter]);
 
-  // ==============================
-  // 4. FILTER AND PAGINATE GROUPS
-  // ==============================
-  const filteredGroups = groups.filter((group) => {
-    const capacity = Number(
-      group.capacity || group.target_participants || 0
-    );
+  // 4. SERVER-SIDE PAGINATION
 
-    const count = Number(
-      group.current_count || group.current_participants || 0
-    );
-
-    const percentage =
-      capacity > 0 ? Math.round((count / capacity) * 100) : 0;
-
-    let status = "In Progress";
-
-    if (percentage >= 100) {
-      status = "Completed";
-    } else if (percentage >= 80) {
-      status = "Near Full";
-    }
-
-    const groupName =
-      group.name || group.product_name || "Unnamed Group";
-
-    const matchesSearch = groupName
-      .toLowerCase()
-      .includes(search.toLowerCase());
-
-    const matchesStatus =
-      statusFilter === "All Status" || status === statusFilter;
-
-    return matchesSearch && matchesStatus;
-  });
-
-  const totalGroupsPages = Math.ceil(
-    filteredGroups.length / groupsPerPage
-  );
-
-  const currentGroups = filteredGroups.slice(
-    (groupsPage - 1) * groupsPerPage,
-    groupsPage * groupsPerPage
-  );
+const currentGroups = groups;
+const totalGroupsPages = groupsPagination.last_page;
 
   // ==============================
   // 5. CAPACITY STATISTICS
@@ -218,18 +240,17 @@ function Dashboard() {
     return capacity > 0 ? (count / capacity) * 100 : 0;
   };
 
-  const inProgressGroups = groups.filter(
-    (group) => getGroupPercentage(group) < 80
-  ).length;
+  const inProgressGroups = Number(
+  dashboard.in_progress_groups_count || 0
+);
 
-  const nearFullGroups = groups.filter((group) => {
-    const percentage = getGroupPercentage(group);
-    return percentage >= 80 && percentage < 100;
-  }).length;
+const almostCompleteGroups = Number(
+  dashboard.almost_complete_groups_count || 0
+);
 
-  const fullGroups = groups.filter(
-    (group) => getGroupPercentage(group) >= 100
-  ).length;
+const completedGroups = Number(
+  dashboard.completed_groups_count || 0
+);
     // ==============================
   // 6. RENDER DASHBOARD
   // ==============================
@@ -240,7 +261,12 @@ function Dashboard() {
   if (error) {
     return <div className="error">Error: {error}</div>;
   }
-
+  const getVisiblePages = (current, total) => {
+    if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);
+    if (current <= 3) return [1, 2, 3, 4, "...", total];
+    if (current >= total - 2) return [1, "...", total - 3, total - 2, total - 1, total];
+    return [1, "...", current - 1, current, current + 1, "...", total];
+  };
   return (
     <main className="content">
       {/* PAGE TITLE */}
@@ -295,8 +321,8 @@ function Dashboard() {
             <div className="stat-card yellow">
               <div className="stat-icon">⚠️</div>
               <div>
-                <strong>{nearFullGroups}</strong>
-                <h3>Near Full</h3>
+                <strong>{almostCompleteGroups}</strong>
+                <h3>Almost Complete</h3>
                 <p>Groups at 80% or more</p>
               </div>
             </div>
@@ -304,8 +330,8 @@ function Dashboard() {
             <div className="stat-card red">
               <div className="stat-icon">✓</div>
               <div>
-                <strong>{dashboard.full_groups_count || 0}</strong>
-                <h3>Full Group</h3>
+                <strong>{dashboard.completed_groups_count || 0}</strong>
+                <h3>Completed</h3>
                 <p>Groups at 100% capacity</p>
               </div>
             </div>
@@ -337,8 +363,9 @@ function Dashboard() {
                   onChange={(e) => setStatusFilter(e.target.value)}
                 >
                   <option>All Status</option>
+                  <option>Low</option>
                   <option>In Progress</option>
-                  <option>Near Full</option>
+                  <option>Almost Complete</option>
                   <option>Completed</option>
                 </select>
               </div>
@@ -452,60 +479,54 @@ function Dashboard() {
 
               {/* GROUPS PAGINATION */}
               <div className="groups-pagination">
-                <span>
-                  Showing{" "}
-                  {filteredGroups.length === 0
-                    ? 0
-                    : (groupsPage - 1) * groupsPerPage + 1}
-                  {" "}to{" "}
-                  {Math.min(
-                    groupsPage * groupsPerPage,
-                    filteredGroups.length
-                  )}
-                  {" "}of {filteredGroups.length} groups
-                </span>
+  <span>
+    Showing {groupsPagination.from || 0} to{" "}
+    {groupsPagination.to || 0} of{" "}
+    {groupsPagination.total} groups
+  </span>
 
-                <div className="pagination-controls">
-                  <button
-                    type="button"
-                    disabled={groupsPage === 1}
-                    onClick={() =>
-                      setGroupsPage((page) => page - 1)
-                    }
-                  >
-                    ‹
-                  </button>
+  <div className="pagination-controls">
+    <button
+      type="button"
+      disabled={groupsPagination.current_page <= 1}
+      onClick={() => setGroupsPage((page) => page - 1)}
+    >
+      ‹
+    </button>
 
-                  {Array.from(
-                    { length: totalGroupsPages },
-                    (_, index) => index + 1
-                  ).map((page) => (
-                    <button
-                      type="button"
-                      key={page}
-                      className={
-                        groupsPage === page ? "active" : ""
-                      }
-                      onClick={() => setGroupsPage(page)}
-                    >
-                      {page}
-                    </button>
-                  ))}
+    {getVisiblePages(
+      groupsPagination.current_page,
+      groupsPagination.last_page
+    ).map((page, idx) =>
+      page === "..." ? (
+        <span key={`ellipsis-${idx}`} className="pagination-ellipsis">
+          ...
+        </span>
+      ) : (
+        <button
+          type="button"
+          key={page}
+          className={
+            groupsPagination.current_page === page ? "active" : ""
+          }
+          onClick={() => setGroupsPage(page)}
+        >
+          {page}
+        </button>
+      )
+    )}
 
-                  <button
-                    type="button"
-                    disabled={
-                      groupsPage === totalGroupsPages ||
-                      totalGroupsPages === 0
-                    }
-                    onClick={() =>
-                      setGroupsPage((page) => page + 1)
-                    }
-                  >
-                    ›
-                  </button>
-                </div>
-              </div>
+    <button
+      type="button"
+      disabled={
+        groupsPagination.current_page >= groupsPagination.last_page
+      }
+      onClick={() => setGroupsPage((page) => page + 1)}
+    >
+      ›
+    </button>
+  </div>
+</div>
             </section>
             {/* RECENT NOTIFICATIONS */}
             <section className="panel notifications-panel">
@@ -548,7 +569,7 @@ function Dashboard() {
                       data.type === "participant" ||
                       notification.type === "participant";
 
-                    let title = "Group Near Full";
+                    let title = "Group Almost Complete";
                     let icon = "⚠️";
                     let typeClass = "warning";
 
@@ -688,21 +709,21 @@ function Dashboard() {
                   </div>
 
                   <div className="capacity-status-item">
-                    <span>🟠 Near Full (≥ 80%):</span>
+                    <span>🟠 Almost Complete (≥ 80%):</span>
                     <strong>
-                      {nearFullGroups}{" "}
+                      {almostCompleteGroups}{" "}
                       <span>
-                        {nearFullGroups === 1 ? "group" : "groups"}
+                        {almostCompleteGroups === 1 ? "group" : "groups"}
                       </span>
                     </strong>
                   </div>
 
                   <div className="capacity-status-item">
-                    <span>🟢 Full (100%):</span>
+                    <span>🟢 Completed (100%):</span>
                     <strong>
-                      {fullGroups}{" "}
+                      {completedGroups}{" "}
                       <span>
-                        {fullGroups === 1 ? "group" : "groups"}
+                        {completedGroups === 1 ? "group" : "groups"}
                       </span>
                     </strong>
                   </div>
